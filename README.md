@@ -1,6 +1,7 @@
 # SIGNATE Student Cup 2023
 
 [Competition Page](https://signate.jp/competitions/1051)
+[Repository](https://github.com/tkser/signate_scup2023)
 
 ## Data
 |ヘッダ名称|値例|データ型|説明|
