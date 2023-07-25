@@ -16,6 +16,7 @@ class Features:
         self._fill_na()
         self._pre_processing()
         self._add_features()
+        self._count_encoding()
         self._label_encoding()
         self._one_hot_encoding()
         return self.df
@@ -37,8 +38,9 @@ class Features:
         self.df["manufacturer"] = self.df["manufacturer"].apply(lambda x: mojimoji.zen_to_han(x))
         self.df["manufacturer"] = self.df["manufacturer"].apply(lambda x: x.lower())
         # cylinders
-        self.df["cylinders"].replace("other", np.nan, inplace=True)
-        self.df["cylinders"] = self.df["cylinders"].str.extract(r"(\d+)", expand=False).astype(float)
+        self.df["cylinders"].replace("other", "-1 cylinders", inplace=True)
+        self.df["cylinders"] = self.df["cylinders"].str.split(" ").str[0]
+        self.df["cylinders"] = self.df["cylinders"].astype(int)
         # odometer
         self.df.loc[self.df["odometer"] == -1, "odometer"] = np.nan
         self.df.loc[self.df["odometer"] == -131869, "odometer"] = 131869
@@ -50,6 +52,12 @@ class Features:
         self.df["age"] = 2023 - self.df["year"]
         self.df["odometer/age"] = self.df["odometer"] / self.df["age"]
         self.df["odometer/cylinders"] = self.df["odometer"] / self.df["cylinders"]
+
+        self.df["manufacturer_odometer_mean"] = self.df.groupby("manufacturer")["odometer"].transform("mean")
+        self.df["manufacturer_odometer_std"] = self.df.groupby("manufacturer")["odometer"].transform("std")
+        self.df["manufacturer_odometer_max"] = self.df.groupby("manufacturer")["odometer"].transform("max")
+        self.df["manufacturer_odometer_min"] = self.df.groupby("manufacturer")["odometer"].transform("min")
+        self.df["manufacturer_odometer_diff"] = self.df["manufacturer_odometer_max"] - self.df["manufacturer_odometer_min"]
 
     def _label_encoding(self) -> None:
         condition_mapping = {
@@ -69,6 +77,23 @@ class Features:
         }
         self.df["size"] = self.df["size"].map(size_mapping)
     
+    def _count_encoding(self) -> None:
+        count_encoding_columns = [
+            "region",
+            "manufacturer",
+            "condition",
+            "fuel",
+            "title_status",
+            "transmission",
+            "drive",
+            "size",
+            "type",
+            "paint_color",
+            "state"
+        ]
+        for c in count_encoding_columns:
+            self.df[f"{c}_count"] = self.df.groupby(c)["id"].transform("count")
+    
     def _one_hot_encoding(self) -> None:
         encodeing_columns = [
             "region",
@@ -82,7 +107,6 @@ class Features:
             "state"
         ]
         self.df = pd.get_dummies(self.df, columns=encodeing_columns, drop_first=True, dtype=int)
-        #,[]{}:がcolumnにあったら_にする
         self.df.columns = [re.sub(r'[,\[\]{}:\s]', '_', c) for c in self.df.columns]
 
 
