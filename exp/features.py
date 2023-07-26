@@ -30,6 +30,9 @@ class Features:
         self.df["type"].fillna("nan", inplace=True)
         # title_status
         self.df["title_status"].fillna("nan", inplace=True)
+        # odometer
+        self.df.loc[self.df["odometer"] == -1, "odometer"] = np.nan
+        self.df["odometer"].fillna(self.df["odometer"].median(), inplace=True)
     
     def _pre_processing(self) -> None:
         # year
@@ -42,7 +45,6 @@ class Features:
         self.df["cylinders"] = self.df["cylinders"].str.split(" ").str[0]
         self.df["cylinders"] = self.df["cylinders"].astype(int)
         # odometer
-        self.df.loc[self.df["odometer"] == -1, "odometer"] = np.nan
         self.df.loc[self.df["odometer"] == -131869, "odometer"] = 131869
         # size
         self.df["size"] = self.df["size"].str.replace("−", "-")
