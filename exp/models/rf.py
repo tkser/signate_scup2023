@@ -47,7 +47,9 @@ class RandomForestModel:
             model, # type: ignore
             self.X_train, self.y_train,
             scoring=make_scorer(mean_absolute_percentage_error, greater_is_better=False),
-            cv=kf
+            cv=kf,
+            n_jobs=-1,
+            verbose=0
         )
         return -scores.mean()
     
