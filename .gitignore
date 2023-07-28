@@ -1,5 +1,5 @@
 input/*.csv
-output/*.csv
+output/*[.csv|.json]
 
 catboost_info/
 
