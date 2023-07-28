@@ -72,7 +72,7 @@ class LGBMModel:
     
     def predict(self, n_splits = 5) -> pd.DataFrame:
         self.models = []
-        predictions = pd.DataFrame(np.zeros((len(self.X_all), n_splits)), columns=[f"pred_{i}" for i in range(n_splits)])
+        predictions = pd.DataFrame(np.zeros((len(self.X_all), n_splits)), columns=[f"lgbm_pred_{i}" for i in range(n_splits)])
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
         for i, (train_index, valid_index) in enumerate(kf.split(self.X_train, self.y_train)):
             X_train, X_valid = self.X_train.iloc[train_index], self.X_train.iloc[valid_index]
