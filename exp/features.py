@@ -79,6 +79,23 @@ class Features:
         }
         self.df["size"] = self.df["size"].map(size_mapping)
     
+    def _rank_encoding(self) -> None:
+        rank_encoding_columns = [
+            "region",
+            "manufacturer",
+            "condition",
+            "fuel",
+            "title_status",
+            "transmission",
+            "drive",
+            "size",
+            "type",
+            "paint_color",
+            "state"
+        ]
+        for c in rank_encoding_columns:
+            self.df[f"{c}_rank"] = self.df.groupby(c)["price"].rank(method="dense", ascending=False).astype(int)
+    
     def _count_encoding(self) -> None:
         count_encoding_columns = [
             "region",
