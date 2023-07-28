@@ -1,6 +1,6 @@
 # SIGNATE Student Cup 2023
 
-[Competition Page](https://signate.jp/competitions/1051)
+[Competition Page](https://signate.jp/competitions/1051)<br/>
 [Repository](https://github.com/tkser/signate_scup2023)
 
 ## Data
