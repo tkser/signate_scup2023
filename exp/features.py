@@ -16,6 +16,7 @@ class Features:
         self._fill_na()
         self._pre_processing()
         self._add_features()
+        #self._rank_encoding()
         self._count_encoding()
         self._label_encoding()
         self._one_hot_encoding()
