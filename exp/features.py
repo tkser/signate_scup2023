@@ -4,6 +4,9 @@ import numpy as np
 
 from geopy.geocoders import Nominatim
 import mojimoji
+import json
+import time
+
 
 class Features:
 
@@ -21,6 +24,7 @@ class Features:
         self._count_encoding()
         self._label_encoding()
         self._one_hot_encoding()
+        self._remove_features()
         return self.df
     
     def _fill_na(self) -> None:
@@ -67,12 +71,55 @@ class Features:
         regions = self.df["region"].unique()
         geolocator = Nominatim(user_agent="tkser@github.com")
         region_latlng = {}
+        try:
+            with open("../output/region_latlng.json", "r") as f:
+                region_latlng = json.load(f)
+        except:
+            pass
         for region in regions:
-            location = geolocator.geocode(region)
-            region_latlng[region] = (location.latitude, location.longitude)
-        self.df["region_lat"] = self.df["region"].map(lambda x: region_latlng[x][0])
-        self.df["region_lng"] = self.df["region"].map(lambda x: region_latlng[x][1])
-
+            if region in region_latlng.keys():
+                continue
+            elif region == "high rockies":
+                region_latlng[region] = {
+                    "lat": 40,
+                    "lng": -105,
+                    "state": "Colorado"
+                }
+            elif region == "western slope":
+                region_latlng[region] = {
+                    "lat": 39,
+                    "lng": -108,
+                    "state": "Colorado"
+                }
+            elif region == "new haven":
+                region_latlng[region] = {
+                    "lat": 41,
+                    "lng": -73,
+                    "state": "Connecticut"
+                }
+            elif region == "hartford":
+                region_latlng[region] = {
+                    "lat": 41.5,
+                    "lng": -73,
+                    "state": "Connecticut"
+                }
+            else:
+                print(region)
+                location = geolocator.geocode(re.split(r"[,/-]", region)[0].strip(), exactly_one=True, timeout=180, language="en", addressdetails=True, country_codes=["us"])
+                coordinates = (location.latitude, location.longitude)
+                address = geolocator.reverse(coordinates, timeout=180, language="en", addressdetails=True, exactly_one=True, namedetails=True)
+                region_latlng[region] = {
+                    "lat": location.latitude,
+                    "lng": location.longitude,
+                    "state": address.raw["address"]["state"]
+                }
+                with open("../output/region_latlng.json", "w") as f:
+                    json.dump(region_latlng, f)
+            time.sleep(1)
+        self.df["region_lat"] = self.df["region"].map(lambda x: region_latlng[x]["lat"])
+        self.df["region_lng"] = self.df["region"].map(lambda x: region_latlng[x]["lng"])
+        self.df["region_state"] = self.df["region"].map(lambda x: region_latlng[x]["state"])
+    
     def _label_encoding(self) -> None:
         condition_mapping = {
             "new": 5,
@@ -127,7 +174,6 @@ class Features:
     
     def _one_hot_encoding(self) -> None:
         encodeing_columns = [
-            "region",
             "manufacturer",
             "fuel",
             "title_status",
@@ -143,6 +189,8 @@ class Features:
 
     def _remove_features(self) -> None:
         remove_columns = [
-            "id"
+            "id",
+            "region",
+            "region_state"
         ]
         self.df.drop(remove_columns, axis=1, inplace=True)
