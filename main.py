@@ -8,6 +8,9 @@ from exp.models.lgbm import LGBMModel
 from exp.models.rf import RandomForestModel
 from exp.models.xgb import XGBModel
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 def main():
     train = pd.read_csv("./input/train.csv")
@@ -18,17 +21,17 @@ def main():
 
     predictions = pd.DataFrame(df["price"])
 
-    rf = RandomForestModel(df)
-    rf.objective()
-    rf_predictions = rf.predict()
-
     lgbm = LGBMModel(df)
-    lgbm.objective()
+    lgbm.objective(20)
     lgbm_predictions = lgbm.predict()
 
     xgb = XGBModel(df)
-    xgb.objective()
+    xgb.objective(20)
     xgb_predictions = xgb.predict()
+
+    rf = RandomForestModel(df)
+    rf.objective(20)
+    rf_predictions = rf.predict()
 
     predictions = pd.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions], axis=1)
 
