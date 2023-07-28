@@ -3,6 +3,8 @@
 [Competition Page](https://signate.jp/competitions/1051)<br/>
 [Repository](https://github.com/tkser/signate_scup2023)
 
+~ 2023/08/24 23:59:59 (JST)
+
 ## Data
 |ヘッダ名称|値例|データ型|説明|
 |--|--|--|--|
