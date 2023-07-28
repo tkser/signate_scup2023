@@ -7,6 +7,9 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import KFold, cross_val_score
 from sklearn.metrics import make_scorer, mean_absolute_percentage_error
 
+import warnings
+warnings.filterwarnings("ignore")
+
 
 class RandomForestModel:
 
@@ -21,7 +24,7 @@ class RandomForestModel:
         self.X_train = self.train.drop(["price"], axis=1)
         self.y_train = self.train["price"]
         self.X_test = self.test.drop(["price"], axis=1)
-        self.X = pd.concat([self.X_train, self.X_test], axis=0)
+        self.X_all = pd.concat([self.X_train, self.X_test], axis=0)
     
     def _objective_trial(self, trial: optuna.Trial) -> float:
         params = {
@@ -35,28 +38,41 @@ class RandomForestModel:
         }
 
         kf = KFold(n_splits=5, shuffle=True, random_state=self.seed * 2)
-        model = RandomForestRegressor(**params, random_state=self.seed)
-        scores = cross_val_score(model, self.X_train, self.y_train, scoring=make_scorer(mean_absolute_percentage_error), cv=kf) # type: ignore
-        return scores.mean()
+        model = RandomForestRegressor(
+            **params,
+            random_state=self.seed,
+            n_jobs=-1
+        )
+        scores = cross_val_score(
+            model, # type: ignore
+            self.X_train, self.y_train,
+            scoring=make_scorer(mean_absolute_percentage_error, greater_is_better=False),
+            cv=kf
+        )
+        return -scores.mean()
     
     def objective(self, n_trial = 100) -> dict:
-        study = optuna.create_study(sampler=optuna.samplers.TPESampler(seed=self.seed))
+        study = optuna.create_study(sampler=optuna.samplers.TPESampler(seed=self.seed), direction="minimize")
         study.optimize(self._objective_trial, n_trials=n_trial, show_progress_bar=True, n_jobs=-1)
         self.best_params = study.best_params
         return study.best_params
     
     def predict(self, n_splits = 5) -> pd.DataFrame:
         self.models = []
-        predictions = pd.DataFrame(np.zeros((len(self.X_test), n_splits)), columns=[f"pred_{i}" for i in range(n_splits)])
+        predictions = pd.DataFrame(np.zeros((len(self.X_all), n_splits)), columns=[f"pred_{i}" for i in range(n_splits)])
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
         for i, (train_index, valid_index) in enumerate(kf.split(self.X_train, self.y_train)):
             X_train, X_valid = self.X_train.iloc[train_index], self.X_train.iloc[valid_index]
             y_train, y_valid = self.y_train.iloc[train_index], self.y_train.iloc[valid_index]
-            model = RandomForestRegressor(**self.best_params, random_state=self.seed)
+            model = RandomForestRegressor(
+                **self.best_params,
+                random_state=self.seed,
+                n_jobs=-1
+            )
             model.fit(X_train, y_train)
             y_pred = model.predict(X_valid)
             score = mean_absolute_percentage_error(y_valid, y_pred) # type: ignore
             print(f"Fold_rf {i}: {score}")
             self.models.append(model)
-            predictions[f"rf_pred_{i}"] = model.predict(self.X)
+            predictions[f"rf_pred_{i}"] = model.predict(self.X_all)
         return predictions
