@@ -2,8 +2,8 @@ import re
 import pandas as pd
 import numpy as np
 
+from geopy.geocoders import Nominatim
 import mojimoji
-
 
 class Features:
 
@@ -16,6 +16,7 @@ class Features:
         self._fill_na()
         self._pre_processing()
         self._add_features()
+        self._add_geo_features()
         #self._rank_encoding()
         self._count_encoding()
         self._label_encoding()
@@ -61,6 +62,16 @@ class Features:
         self.df["manufacturer_odometer_max"] = self.df.groupby("manufacturer")["odometer"].transform("max")
         self.df["manufacturer_odometer_min"] = self.df.groupby("manufacturer")["odometer"].transform("min")
         self.df["manufacturer_odometer_diff"] = self.df["manufacturer_odometer_max"] - self.df["manufacturer_odometer_min"]
+    
+    def _add_geo_features(self) -> None:
+        regions = self.df["region"].unique()
+        geolocator = Nominatim(user_agent="tkser@github.com")
+        region_latlng = {}
+        for region in regions:
+            location = geolocator.geocode(region)
+            region_latlng[region] = (location.latitude, location.longitude)
+        self.df["region_lat"] = self.df["region"].map(lambda x: region_latlng[x][0])
+        self.df["region_lng"] = self.df["region"].map(lambda x: region_latlng[x][1])
 
     def _label_encoding(self) -> None:
         condition_mapping = {
