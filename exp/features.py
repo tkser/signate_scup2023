@@ -1,5 +1,6 @@
 import re
-import pandas as pd
+import polars as pl
+
 import numpy as np
 
 from geopy.geocoders import Nominatim
@@ -10,13 +11,17 @@ import time
 
 class Features:
 
-    def __init__(self, train: pd.DataFrame, test: pd.DataFrame) -> None:
+    train: pl.DataFrame
+    test: pl.DataFrame
+    df: pl.DataFrame
+
+    def __init__(self, train: pl.DataFrame, test: pl.DataFrame) -> None:
         self.train = train
         self.test = test
-        self.df = pd.concat([train, test], axis=0)
 
-    def create_features(self) -> pd.DataFrame:
+    def create_features(self) -> pl.DataFrame:
         self._fill_na()
+        self._df_initialize()
         self._pre_processing()
         self._add_features()
         self._add_geo_features()
@@ -25,21 +30,32 @@ class Features:
         self._label_encoding()
         self._one_hot_encoding()
         self._remove_features()
-        return self.df
+        return self.train, self.test
+    
+    def _df_initialize(self) -> None:
+        self.train = self.train.with_columns(
+            pl.col(pl.Utf8).cast(pl.Categorical)
+        )
+        self.test = self.test.with_columns(
+            pl.col(pl.Utf8).cast(pl.Categorical)
+        )
     
     def _fill_na(self) -> None:
-        # fuel
-        self.df["fuel"].fillna("gas", inplace=True)
-        # state
-        self.df["state"].fillna("nan", inplace=True)
-        # type
-        self.df["type"].fillna("nan", inplace=True)
-        # title_status
-        self.df["title_status"].fillna("nan", inplace=True)
-        # odometer
-        self.df.loc[self.df["odometer"] == -1, "odometer"] = np.nan
-        self.df["odometer"].fillna(self.df["odometer"].median(), inplace=True)
-    
+        self.train = self.train.with_columns(
+            pl.when(pl.col("fuel") == "").then("gas").otherwise(pl.col("fuel")).alias("fuel"),
+            pl.when(pl.col("state") == "").then("nan").otherwise(pl.col("state")).alias("state"),
+            pl.when(pl.col("type") == "").then("nan").otherwise(pl.col("type")).alias("type"),
+            pl.when(pl.col("title_status") == "").then("nan").otherwise(pl.col("title_status")).alias("title_status"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer"),
+        )
+        self.test = self.test.with_columns(
+            pl.when(pl.col("fuel") == "").then("gas").otherwise(pl.col("fuel")).alias("fuel"),
+            pl.when(pl.col("state") == "").then("nan").otherwise(pl.col("state")).alias("state"),
+            pl.when(pl.col("type") == "").then("nan").otherwise(pl.col("type")).alias("type"),
+            pl.when(pl.col("title_status") == "").then("nan").otherwise(pl.col("title_status")).alias("title_status"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer"),
+        )
+
     def _pre_processing(self) -> None:
         # year
         self.df.loc[self.df["year"] >= 2030, "year"] = self.df[self.df["year"] >= 2030]["year"] - 1000
