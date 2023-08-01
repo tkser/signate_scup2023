@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import numpy as np
 
 from sklearn.linear_model import Ridge
@@ -15,13 +15,13 @@ warnings.filterwarnings("ignore")
 
 
 def main():
-    train = pd.read_csv("./input/train.csv")
-    test = pd.read_csv("./input/test.csv")
+    train = pl.read_csv("./input/train.csv")
+    test = pl.read_csv("./input/test.csv")
 
     features = Features(train, test)
     df = features.create_features()
 
-    predictions = pd.DataFrame(df["price"])
+    predictions = pl.DataFrame(df["price"])
 
     lgbm = LGBMModel(df)
     #lgbm.objective(20)
@@ -48,7 +48,7 @@ def main():
     cat.best_params = {"depth": 6}
     cat_predictions = cat.predict()
 
-    predictions = pd.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions, rgf_predictions, cat_predictions], axis=1)
+    predictions = pl.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions, rgf_predictions, cat_predictions])
 
     model = Ridge(random_state=0)
     train = predictions[predictions["price"].notnull()]
@@ -59,9 +59,9 @@ def main():
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
-    sub = pd.read_csv("./input/submit_sample.csv")
+    sub = pl.read_csv("./input/submit_sample.csv")
     sub["price"] = y_pred
-    sub.to_csv("./output/submit0728_fullstacking.csv", index=False)
+    sub.write_csv("./output/submit0728_fullstacking.csv", overwrite=True)
 
 
 if __name__ == "__main__":
