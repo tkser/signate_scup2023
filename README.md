@@ -36,3 +36,14 @@
 ├── work
 └── exp
 ```
+
+
+## Usage
+```bash
+conda env create -f conda.yml
+conda activate competition
+```
+
+```bash
+conda env export > conda.yml
+```
