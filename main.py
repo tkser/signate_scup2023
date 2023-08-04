@@ -2,7 +2,7 @@ import os
 import polars as pl
 import numpy as np
 
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import LinearRegression
 
 from exp.features import Features
 from exp.models.cat import CatBoostModel
@@ -51,7 +51,7 @@ def main():
 
     predictions = pl.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions, rgf_predictions, cat_predictions], how="horizontal")
 
-    model = Ridge(random_state=0)
+    model = LinearRegression()
     train = predictions.filter(pl.col("price").is_not_null())
     test = predictions.filter(pl.col("price").is_null())
     X_train = train.drop("price")
@@ -60,9 +60,9 @@ def main():
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
-    sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/sample_submission.csv"))
-    sub["price"] = y_pred
-    sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0804polars.csv"), overwrite=True)
+    sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
+    sub.with_columns(pl.Series(y_pred).alias("price"))
+    sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0804polars.csv"), has_header=False)
 
 
 if __name__ == "__main__":
