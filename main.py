@@ -2,7 +2,7 @@ import os
 import polars as pl
 import numpy as np
 
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 
 from exp.features import Features
 from exp.models.cat import CatBoostModel
@@ -49,19 +49,19 @@ def main():
     cat.best_params = {"depth": 6}
     cat_predictions = cat.predict()
 
-    predictions = pl.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions, rgf_predictions, cat_predictions], how="horizontal")
+    predictions_all = pl.concat([predictions, lgbm_predictions, xgb_predictions, rf_predictions, rgf_predictions, cat_predictions], how="horizontal")
 
-    model = LinearRegression()
-    train = predictions.filter(pl.col("price").is_not_null())
-    test = predictions.filter(pl.col("price").is_null())
-    X_train = train.drop("price")
-    y_train = train["price"]
-    X_test = test.drop("price")
+    model = Ridge(random_state=0)
+    train = predictions_all.filter(pl.col("price").is_not_null())
+    test = predictions_all.filter(pl.col("price").is_null())
+    X_train = train.drop("price").to_numpy()
+    y_train = train["price"].to_numpy()
+    X_test = test.drop("price").to_numpy()
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
     sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
-    sub.with_columns(pl.Series(y_pred).alias("price"))
+    sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
     sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0805state.csv"), has_header=False)
 
 
