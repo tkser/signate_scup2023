@@ -77,7 +77,7 @@ class RGFModel:
             print(f"Fold_rgf {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
-            predictions.with_columns(
+            predictions = predictions.with_columns(
                 pl.Series(y_pred_all).alias(f"rgf_pred_{i}"),
             )
         return predictions

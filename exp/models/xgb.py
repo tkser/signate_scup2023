@@ -86,7 +86,7 @@ class XGBModel:
             print(f"Fold_xgb {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
-            predictions.with_columns(
+            predictions = predictions.with_columns(
                 pl.Series(y_pred_all).alias(f"xgb_pred_{i}"),
             )
         return predictions

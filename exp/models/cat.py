@@ -84,7 +84,7 @@ class CatBoostModel:
             print(f"Fold_cat {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
-            predictions.with_columns(
+            predictions = predictions.with_columns(
                 pl.Series(y_pred_all).alias(f"cat_pred_{i}"),
             )
         return predictions

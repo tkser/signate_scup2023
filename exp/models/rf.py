@@ -77,7 +77,7 @@ class RandomForestModel:
             print(f"Fold_rf {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
-            predictions.with_columns(
+            predictions = predictions.with_columns(
                 pl.Series(y_pred_all).alias(f"rf_pred_{i}"),
             )
         return predictions
