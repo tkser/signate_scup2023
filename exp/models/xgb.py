@@ -1,4 +1,4 @@
-import pandas as pd
+import polars as pl
 import numpy as np
 
 import optuna
@@ -13,18 +13,17 @@ warnings.filterwarnings("ignore")
 
 class XGBModel:
 
-    def __init__(self, df: pd.DataFrame, seed = 0) -> None:
-        self.df = df
+    def __init__(self, train: pl.DataFrame, test: pl.DataFrame, seed = 0) -> None:
+        self.train = train
+        self.test = test
         self.seed = seed
         self._pre_processing()
     
     def _pre_processing(self) -> None:
-        self.train = self.df[self.df["price"].notnull()]
-        self.test = self.df[self.df["price"].isnull()]
-        self.X_train = self.train.drop(["price"], axis=1)
+        self.X_train = self.train.drop("price")
         self.y_train = self.train["price"]
-        self.X_test = self.test.drop(["price"], axis=1)
-        self.X_all = pd.concat([self.X_train, self.X_test], axis=0)
+        self.X_test = self.test
+        self.X_all = pl.concat([self.X_train, self.X_test]).to_numpy()
     
     def _objective_trial(self, trial: optuna.Trial) -> float:
         params = {
@@ -39,7 +38,7 @@ class XGBModel:
             "eta": trial.suggest_float("eta", 1e-8, 1.0, log=True)
         }
 
-        X, y = self.X_train.values, self.y_train.values
+        X, y = self.X_train.to_numpy(), self.y_train.to_numpy()
         X_cv, X_eval, y_cv, y_eval = train_test_split(X, y, test_size=0.25, random_state=self.seed)
         kf = KFold(n_splits=5, shuffle=True, random_state=self.seed * 2)
         model = XGBRegressor(
@@ -62,13 +61,14 @@ class XGBModel:
         self.best_params = study.best_params
         return study.best_params
     
-    def predict(self, n_splits = 5) -> pd.DataFrame:
+    def predict(self, n_splits = 5) -> pl.DataFrame:
         self.models = []
-        predictions = pd.DataFrame(np.zeros((len(self.X_all), n_splits)), columns=[f"xgb_pred_{i}" for i in range(n_splits)])
+        predictions = pl.DataFrame(np.zeros((self.X_all.shape[0], n_splits)), schema=[f"xgb_pred_{i}" for i in range(n_splits)])
+        X, y = self.X_train.to_numpy(), self.y_train.to_numpy()
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
-        for i, (train_index, valid_index) in enumerate(kf.split(self.X_train, self.y_train)):
-            X_train, X_valid = self.X_train.iloc[train_index], self.X_train.iloc[valid_index]
-            y_train, y_valid = self.y_train.iloc[train_index], self.y_train.iloc[valid_index]
+        for i, (train_index, valid_index) in enumerate(kf.split(X, y)):
+            X_train, X_valid = X[train_index], X[valid_index]
+            y_train, y_valid = y[train_index], y[valid_index]
             model = XGBRegressor(
                 **self.best_params,
                 random_state=self.seed,
@@ -85,5 +85,8 @@ class XGBModel:
             score = mean_absolute_percentage_error(y_valid, y_pred) # type: ignore
             print(f"Fold_xgb {i}: {score}")
             self.models.append(model)
-            predictions[f"xgb_pred_{i}"] = model.predict(self.X_all)
+            y_pred_all = model.predict(self.X_all)
+            predictions.with_columns(
+                pl.Series(y_pred_all).alias(f"xgb_pred_{i}"),
+            )
         return predictions
