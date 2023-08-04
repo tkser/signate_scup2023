@@ -44,6 +44,19 @@ class Features:
         )
     
     def __fill_na(self) -> None:
+        regions = self.train["region"].unique().to_list()
+        region_state_map = {}
+        for region in regions:
+            state_mode = self.train.filter((pl.col("region") == region) & (pl.col("state") != "nan"))["state"].mode()
+            region_state_map[region] = state_mode[0] if len(state_mode) > 0 else None
+        
+        self.train = self.train.with_columns(
+            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state")
+        )
+        self.test = self.test.with_columns(
+            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state")
+        )
+
         self.train = self.train.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
             pl.col("state").fill_null("nan").alias("state"),
@@ -99,9 +112,7 @@ class Features:
             (pl.col("odometer") / pl.col("cylinders")).alias("odometer/cylinders"),
         )
 
-        merge_df = pl.concat([self.train.select(pl.exclude("price")), self.test])
-
-        manufacturer_agg_df = merge_df.groupby("manufacturer").agg(
+        manufacturer_agg_df = self.train.groupby("manufacturer").agg(
             pl.mean("odometer").alias("manufacturer_odometer_mean"),
             pl.std("odometer").alias("manufacturer_odometer_std"),
             pl.max("odometer").alias("manufacturer_odometer_max"),
@@ -204,9 +215,8 @@ class Features:
             "paint_color",
             "state"
         ]
-        merge_df = pl.concat([self.train.select(pl.exclude("price")), self.test])
         for c in rank_encoding_columns:
-            rank_df = merge_df.groupby(c).count().rename({"count": f"{c}_count"})
+            rank_df = self.train.groupby(c).count().rename({"count": f"{c}_count"})
             rank_df = rank_df.with_columns(
                 pl.col(f"{c}_count").rank().alias(f"{c}_rank")
             ).select([f"{c}_rank", c])
@@ -227,9 +237,8 @@ class Features:
             "paint_color",
             "state"
         ]
-        merge_df = pl.concat([self.train.select(pl.exclude("price")), self.test])
         for c in count_encoding_columns:
-            count_df = merge_df.groupby(c).count().rename({"count": f"{c}_count"})
+            count_df = self.train.groupby(c).count().rename({"count": f"{c}_count"})
             self.train = self.train.join(count_df, on=c, how="left")
             self.test = self.test.join(count_df, on=c, how="left")
     
