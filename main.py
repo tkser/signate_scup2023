@@ -62,7 +62,7 @@ def main():
 
     sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
     sub.with_columns(pl.Series(y_pred).alias("price"))
-    sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0804polars.csv"), has_header=False)
+    sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0805state.csv"), has_header=False)
 
 
 if __name__ == "__main__":
