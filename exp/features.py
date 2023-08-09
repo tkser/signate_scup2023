@@ -28,9 +28,10 @@ class Features:
         self.__add_features()
         self.__add_geo_features()
         self.__df_initialize()
-        #self.__rank_encoding()
+        self.__rank_encoding()
         self.__count_encoding()
         self.__label_encoding()
+        self.__target_encoding()
         self.__one_hot_encoding()
         self.__remove_features()
         return self.train, self.test
@@ -62,14 +63,14 @@ class Features:
             pl.col("state").fill_null("nan").alias("state"),
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("nan").alias("title_status"),
-            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
         self.test = self.test.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
             pl.col("state").fill_null("nan").alias("state"),
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("nan").alias("title_status"),
-            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
 
     def __pre_processing(self) -> None:
@@ -241,6 +242,22 @@ class Features:
             count_df = self.train.groupby(c).count().rename({"count": f"{c}_count"})
             self.train = self.train.join(count_df, on=c, how="left")
             self.test = self.test.join(count_df, on=c, how="left")
+    
+    def __target_encoding(self) -> None:
+        encoding_columns = [
+            "manufacturer",
+            "fuel",
+            "title_status",
+            "transmission",
+            "drive",
+            "type",
+            "paint_color",
+            "state"
+        ]
+        for c in encoding_columns:
+            target_df = self.train.groupby(c).agg(pl.mean("price").alias(f"{c}_mean"))
+            self.train = self.train.join(target_df, on=c, how="left")
+            self.test = self.test.join(target_df, on=c, how="left")
     
     def __one_hot_encoding(self) -> None:
         encodeing_columns = [
