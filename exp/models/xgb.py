@@ -43,8 +43,7 @@ class XGBModel:
         kf = KFold(n_splits=5, shuffle=True, random_state=self.seed * 2)
         model = XGBRegressor(
             **params,
-            random_state=self.seed,
-            tree_method="gpu_hist"
+            random_state=self.seed
         )
         scores = cross_val_score(
             model, # type: ignore
@@ -71,8 +70,7 @@ class XGBModel:
             y_train, y_valid = y[train_index], y[valid_index]
             model = XGBRegressor(
                 **self.best_params,
-                random_state=self.seed,
-                tree_method="gpu_hist"
+                random_state=self.seed
             )
             model.fit(
                 X_train, y_train,

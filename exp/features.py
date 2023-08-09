@@ -172,7 +172,7 @@ class Features:
                     "lat": [location.latitude],
                     "lng": [location.longitude],
                 }), in_place=True)
-                region_latlng_df.write_csv("../output/region_latlng.csv")
+                region_latlng_df.write_csv(region_csv_path)
             time.sleep(1)
         self.train = self.train.join(region_latlng_df, on="region", how="left")
         self.test = self.test.join(region_latlng_df, on="region", how="left")

@@ -11,13 +11,16 @@ from exp.models.rf import RandomForestModel
 from exp.models.rgf import RGFModel
 from exp.models.xgb import XGBModel
 
+import gc
+gc.enable()
+
 import warnings
 warnings.filterwarnings("ignore")
 
 
 def main():
-    train = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/train.csv"))
-    test = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/test.csv"))
+    train = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/train.csv"))
+    test = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/test.csv"))
 
     features = Features(train, test)
     train, test = features.create_features()
@@ -60,9 +63,9 @@ def main():
     model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
 
-    sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "./input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
+    sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
     sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-    sub.write_csv(os.path.join(os.path.dirname(__file__), "./output/submission0805state.csv"), has_header=False)
+    sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_ubuntu.csv"), has_header=False)
 
 
 if __name__ == "__main__":
