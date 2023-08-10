@@ -203,7 +203,7 @@ class Features:
     
     def __rank_encoding(self) -> None:
         rank_encoding_columns = [
-            "region",
+            #"region",
             "manufacturer",
             "condition",
             "fuel",
@@ -225,7 +225,7 @@ class Features:
     
     def __count_encoding(self) -> None:
         count_encoding_columns = [
-            "region",
+            #"region",
             "manufacturer",
             "condition",
             "fuel",
