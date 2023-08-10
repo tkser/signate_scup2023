@@ -299,4 +299,4 @@ class FeatureSelecter:
         print(self.test.columns)
     
     def get_dataframe(self, type: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
-        pass
+        return self.train, self.test
