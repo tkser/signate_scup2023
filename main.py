@@ -20,6 +20,8 @@ warnings.filterwarnings("ignore")
 
 
 def main():
+    time_sta_all = time.perf_counter()
+
     train = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/train.csv"))
     test = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/test.csv"))
 
@@ -80,8 +82,8 @@ def main():
     sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
     sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0810.csv"), has_header=False)
 
+    print(f"all: {time.perf_counter() - time_sta_all}")
+
 
 if __name__ == "__main__":
-    time_sta_all = time.perf_counter()
     main()
-    print(f"all: {time.perf_counter() - time_sta_all}")
