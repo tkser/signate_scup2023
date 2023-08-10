@@ -1,6 +1,8 @@
 import polars as pl
 import numpy as np
 
+from typing import List
+
 import optuna
 
 from lightgbm import LGBMRegressor, early_stopping, log_evaluation
@@ -12,6 +14,8 @@ warnings.filterwarnings("ignore")
 
 
 class LGBMModel:
+
+    models: List[LGBMRegressor]
 
     def __init__(self, train: pl.DataFrame, test: pl.DataFrame, seed = 0) -> None:
         self.train = train
@@ -102,3 +106,14 @@ class LGBMModel:
                 pl.Series(y_pred_all).alias(f"lgbm_pred_{i}"),
             )
         return predictions
+    
+    def feature_importance(self) -> pl.DataFrame:
+        importance = pl.DataFrame(self.X_train.columns, schema=["feature"])
+        for i, model in enumerate(self.models):
+            importance = importance.with_columns(
+                pl.Series(model.feature_importances_).alias(f"lgbm_importance_{i}"),
+            )
+        importance = importance.with_columns(
+            pl.Series(importance[:, 1:].mean(axis=1)).alias("lgbm_importance_mean"),
+        )
+        return importance[["feature", "lgbm_importance_mean"]]
