@@ -33,7 +33,6 @@ class Features:
         self.__label_encoding()
         self.__target_encoding()
         self.__one_hot_encoding()
-        self.__remove_features()
         return self.train, self.test
     
     def __df_initialize(self) -> None:
@@ -78,7 +77,7 @@ class Features:
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower()).alias("manufacturer"),
+            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower().replace("α", "a").replace("ѕ", "s").replace("а", "a")).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
@@ -91,7 +90,7 @@ class Features:
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower()).alias("manufacturer"),
+            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower().replace("α", "a").replace("ѕ", "s").replace("а", "a")).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
@@ -277,10 +276,27 @@ class Features:
         self.train = self.train.drop(encodeing_columns)
         self.test = self.test.drop(encodeing_columns)
 
-    def __remove_features(self) -> None:
-        remove_columns = [
+
+class FeatureSelecter:
+
+    train: pl.DataFrame
+    test: pl.DataFrame
+
+    def __init__(self, train: pl.DataFrame, test: pl.DataFrame) -> None:
+        self.train = train
+        self.test = test
+        self.__common_func()
+    
+    def __common_func(self) -> None:
+        common_drop_columns = [
             "id",
             "region"
         ]
-        self.train = self.train.drop(remove_columns)
-        self.test = self.test.drop(remove_columns)
+        self.train = self.train.drop(common_drop_columns)
+        self.test = self.test.drop(common_drop_columns)
+    
+    def show_columns(self) -> None:
+        print(self.test.columns)
+    
+    def get_dataframe(self, type: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
+        pass
