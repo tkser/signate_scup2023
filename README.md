@@ -40,6 +40,17 @@
 
 ## Usage
 ```bash
+pip install signate
 poetry install
 poetry run start
+```
+
+### Download Data
+```bash
+signate download --competition-id=1051 --path=./input
+```
+
+### Submit Data
+```bash
+signate submit --competition-id=1051 ./output/~~
 ```
