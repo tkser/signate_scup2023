@@ -14,7 +14,6 @@ python = "^3.11"
 polars = "^0.18.11"
 numpy = "^1.25.2"
 scikit-learn = "^1.3.0"
-mojimoji = "^0.0.12"
 seaborn = "^0.12.2"
 matplotlib = "^3.7.2"
 pandas = "^2.0.3"
@@ -26,6 +25,8 @@ lightgbm = "^4.0.0"
 rgf-python = "^3.12.0"
 xgboost = "^1.7.6"
 ipykernel = "^6.25.0"
+category-encoders = "^2.6.1"
+unidecode = "^1.3.6"
 
 
 [build-system]

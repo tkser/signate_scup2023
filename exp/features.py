@@ -7,9 +7,7 @@ from typing import Tuple
 import polars as pl
 pl.enable_string_cache(True)
 
-import dataliner as dl
-
-import mojimoji
+from unidecode import unidecode
 from geopy.geocoders import Nominatim
 
 
@@ -71,13 +69,24 @@ class Features:
             pl.col("title_status").fill_null("nan").alias("title_status"),
             pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
+    
+    def __manufacturer_clean(self, x) -> str:
+        error_parse_dict = {
+            "lexudz": "lexus",
+            "nidzsan": "nissan",
+            "nisdzan": "nissan"
+        }
+        x = unidecode(x).lower().replace(" ", "_").replace("-", "_")
+        if x in error_parse_dict.keys():
+            x = error_parse_dict[x]
+        return x
 
     def __pre_processing(self) -> None:
         self.train = self.train.with_columns(
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower().replace("α", "a").replace("ѕ", "s").replace("а", "a")).alias("manufacturer"),
+            pl.col("manufacturer").apply(self.__manufacturer_clean).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
@@ -90,7 +99,7 @@ class Features:
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(lambda x: mojimoji.zen_to_han(x).lower().replace("α", "a").replace("ѕ", "s").replace("а", "a")).alias("manufacturer"),
+            pl.col("manufacturer").apply(self.__manufacturer_clean).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
