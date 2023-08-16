@@ -43,31 +43,35 @@ class Features:
     
     def __fill_na(self) -> None:
         regions = self.train["region"].unique().to_list()
-        region_state_map = {}
+        region_state_map = {
+            "orthwest KS": "ks",
+            "ashtabula": "oh",
+            "southern WV": "wv"
+        }
         for region in regions:
             state_mode = self.train.filter((pl.col("region") == region) & (pl.col("state") != "nan"))["state"].mode()
             region_state_map[region] = state_mode[0] if len(state_mode) > 0 else None
         
         self.train = self.train.with_columns(
-            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state")
+            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).alias("odometer"),
         )
         self.test = self.test.with_columns(
-            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state")
+            pl.when(pl.col("state").is_null()).then(pl.col("region").map_dict(region_state_map)).otherwise(pl.col("state")).alias("state"),
+            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).alias("odometer"),
         )
 
         self.train = self.train.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
-            pl.col("state").fill_null("nan").alias("state"),
             pl.col("type").fill_null("nan").alias("type"),
-            pl.col("title_status").fill_null("nan").alias("title_status"),
-            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer_f"),
+            pl.col("title_status").fill_null("clean").alias("title_status"),
+            pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
         self.test = self.test.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
-            pl.col("state").fill_null("nan").alias("state"),
             pl.col("type").fill_null("nan").alias("type"),
-            pl.col("title_status").fill_null("nan").alias("title_status"),
-            pl.when(pl.col("odometer") == -1).then(None).otherwise(pl.col("odometer")).fill_null(pl.col("odometer").median()).alias("odometer_f"),
+            pl.col("title_status").fill_null("clean").alias("title_status"),
+            pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
     
     def __manufacturer_clean(self, x) -> str:
@@ -202,12 +206,12 @@ class Features:
             "sub-compact": 0
         }
         self.train = self.train.with_columns(
-            pl.col("condition").map_dict(condition_mapping).alias("condition"),
-            pl.col("size").map_dict(size_mapping).alias("size")
+            pl.col("condition").map_dict(condition_mapping).alias("condition_l"),
+            pl.col("size").map_dict(size_mapping).alias("size_l")
         )
         self.test = self.test.with_columns(
-            pl.col("condition").map_dict(condition_mapping).alias("condition"),
-            pl.col("size").map_dict(size_mapping).alias("size")
+            pl.col("condition").map_dict(condition_mapping).alias("condition_l"),
+            pl.col("size").map_dict(size_mapping).alias("size_l")
         )
     
     def __rank_encoding(self) -> None:
@@ -282,8 +286,6 @@ class Features:
         mearge_df = mearge_df.to_dummies(encodeing_columns, drop_first=True)
         self.train = self.train.join(mearge_df, on="id", how="left")
         self.test = self.test.join(mearge_df, on="id", how="left")
-        self.train = self.train.drop(encodeing_columns)
-        self.test = self.test.drop(encodeing_columns)
 
 
 class FeatureSelecter:
@@ -295,6 +297,7 @@ class FeatureSelecter:
         self.train = train
         self.test = test
         self.__common_func()
+        self.__drop_category_columns()
     
     def __common_func(self) -> None:
         common_drop_columns = [
@@ -303,6 +306,20 @@ class FeatureSelecter:
         ]
         self.train = self.train.drop(common_drop_columns)
         self.test = self.test.drop(common_drop_columns)
+    
+    def __drop_category_columns(self) -> None:
+        category_columns = [
+            "manufacturer",
+            "fuel",
+            "title_status",
+            "transmission",
+            "drive",
+            "type",
+            "paint_color",
+            "state"
+        ]
+        self.train = self.train.drop(category_columns)
+        self.test = self.test.drop(category_columns)
     
     def show_columns(self) -> None:
         print(self.test.columns)

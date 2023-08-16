@@ -3,8 +3,6 @@ import time
 import polars as pl
 import numpy as np
 
-from sklearn.linear_model import LinearRegression
-
 from exp.features import Features, FeatureSelecter
 from exp.models.cat import CatBoostModel
 from exp.models.lgbm import LGBMModel
