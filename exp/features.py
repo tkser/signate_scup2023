@@ -68,6 +68,13 @@ class Features:
         )
 
         self.train = self.train.with_columns(
+            pl.when(pl.col("odometer") >= 1000000).then(pl.col("odometer") / 1000).otherwise(pl.col("odometer")).alias("odometer"),
+        )
+        self.test = self.test.with_columns(
+            pl.when(pl.col("odometer") >= 1000000).then(pl.col("odometer") / 1000).otherwise(pl.col("odometer")).alias("odometer"),
+        )
+
+        self.train = self.train.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("clean").alias("title_status"),
@@ -317,7 +324,7 @@ class Features:
             fasttext.util.download_model("en", if_exists="ignore")
             os.rename("cc.en.300.bin", model_path)
         ft_model = fasttext.load_model(model_path)
-        ft_model = fasttext.util.reduce_model(ft_model, 100)
+        ft_model = fasttext.util.reduce_model(ft_model, 50)
 
         self.train = self.train.with_columns(
             pl.col("car_string").apply(lambda x: ft_model.get_sentence_vector(x)).alias("car_string_vec")
