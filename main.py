@@ -84,7 +84,7 @@ def main():
 
     sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
     sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-    sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0817_3_kde.csv"), has_header=False)
+    sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0817_4_kmeans.csv"), has_header=False)
 
     print(f"all: {time.perf_counter() - time_sta_all}")
 
