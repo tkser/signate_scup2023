@@ -14,6 +14,8 @@ import fasttext.util
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
 
+from sklearn.neighbors import KernelDensity
+
 
 class Features:
 
@@ -32,8 +34,9 @@ class Features:
         self.__df_initialize()
         self.__rank_encoding()
         self.__count_encoding()
-        self.__label_encoding()
+        self.__kde_encoding()
         self.__target_encoding()
+        self.__label_encoding()
         self.__agg_encoding()
         self.__car_string_encoding()
         self.__one_hot_encoding()
@@ -79,12 +82,14 @@ class Features:
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("clean").alias("title_status"),
             pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
+            pl.col("odometer").fill_null(-1).alias("odometer"),
         )
         self.test = self.test.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("clean").alias("title_status"),
             pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
+            pl.col("odometer").fill_null(-1).alias("odometer"),
         )
     
     def __manufacturer_clean(self, x) -> str:
@@ -269,7 +274,13 @@ class Features:
             self.test = self.test.join(count_df, on=c, how="left")
     
     def __target_encoding(self) -> None:
-        encoding_columns = [
+        def target_encode(group_col_names, target_col_name):
+            for c in group_col_names:
+                target_df = self.train.groupby(c).agg(pl.mean(target_col_name).alias(f"{c}_{target_col_name}_mean"))
+                self.train = self.train.join(target_df, on=c, how="left")
+                self.test = self.test.join(target_df, on=c, how="left")
+            
+        price_encoding_columns = [
             "manufacturer",
             "fuel",
             "title_status",
@@ -279,10 +290,86 @@ class Features:
             "paint_color",
             "state"
         ]
-        for c in encoding_columns:
-            target_df = self.train.groupby(c).agg(pl.mean("price").alias(f"{c}_mean"))
-            self.train = self.train.join(target_df, on=c, how="left")
-            self.test = self.test.join(target_df, on=c, how="left")
+        target_encode(price_encoding_columns, "price")
+
+        price_ratio_encoding_columns = [
+            "title_status",
+            "state",
+            "region",
+            "paint_color",
+        ]
+        target_encode(price_ratio_encoding_columns, "type_manufacturer_price_ratio")
+    
+    def __kde_encoding(self) -> None:
+        def compute_type_base_value(group_col_name: str, target_col_name: str):
+            type_values = []
+            
+            for type_name in self.train[group_col_name].unique().to_list():
+                subset = self.train.filter(self.train[group_col_name] == type_name)
+                prices = subset[target_col_name].to_numpy().reshape(1, -1)
+                if len(prices)>10:
+                    kde = KernelDensity(kernel='gaussian', bandwidth=np.std(prices)+1).fit(prices)
+                    _prices = np.linspace(np.min(prices), np.max(prices), 100).reshape(1, -1)
+                    dens = kde.score_samples(_prices)
+                    type_values.append((type_name, prices[np.argmax(dens)]))
+                else:
+                    type_values.append((type_name, np.nanmean(prices)))
+            
+            return pl.DataFrame(type_values, schema={group_col_name: pl.Categorical, "{}_base_{}".format(group_col_name, target_col_name): pl.Float32})
+
+        type_base_prices = compute_type_base_value("type", "price")
+        self.train = self.train.join(type_base_prices, on="type", how="left")
+        self.test = self.test.join(type_base_prices, on="type", how="left")
+
+        type_base_years = compute_type_base_value("type", "year")
+        self.train = self.train.join(type_base_years, on="type", how="left")
+        self.test = self.test.join(type_base_years, on="type", how="left")
+
+        type_base_odometers = compute_type_base_value("type", "odometer_f")
+        self.train = self.train.join(type_base_odometers, on="type", how="left")
+        self.test = self.test.join(type_base_odometers, on="type", how="left")
+
+        manufacturer_base_prices = compute_type_base_value("manufacturer", "price")
+        self.train = self.train.join(manufacturer_base_prices, on="manufacturer", how="left")
+        self.test = self.test.join(manufacturer_base_prices, on="manufacturer", how="left")
+
+        manufacturer_base_years = compute_type_base_value("manufacturer", "year")
+        self.train = self.train.join(manufacturer_base_years, on="manufacturer", how="left")
+        self.test = self.test.join(manufacturer_base_years, on="manufacturer", how="left")
+
+        manufacturer_base_odometers = compute_type_base_value("manufacturer", "odometer_f")
+        self.train = self.train.join(manufacturer_base_odometers, on="manufacturer", how="left")
+        self.test = self.test.join(manufacturer_base_odometers, on="manufacturer", how="left")
+
+        self.train = self.train.with_columns(
+            ((pl.col("type_base_price") + pl.col("manufacturer_base_price")) / 2).alias("type_manufacturer_base_price"),
+            ((pl.col("type_base_year") + pl.col("manufacturer_base_year")) / 2).alias("type_manufacturer_base_year"),
+            ((pl.col("type_base_odometer_f") + pl.col("manufacturer_base_odometer_f")) / 2).alias("type_manufacturer_base_odometer"),
+        )
+        self.test = self.test.with_columns(
+            ((pl.col("type_base_price") + pl.col("manufacturer_base_price")) / 2).alias("type_manufacturer_base_price"),
+            ((pl.col("type_base_year") + pl.col("manufacturer_base_year")) / 2).alias("type_manufacturer_base_year"),
+            ((pl.col("type_base_odometer_f") + pl.col("manufacturer_base_odometer_f")) / 2).alias("type_manufacturer_base_odometer"),
+        )
+
+        self.train = self.train.with_columns(
+            (pl.col("price") / pl.col("type_manufacturer_base_price")).alias("type_manufacturer_price_ratio"),
+            (pl.col("year") - pl.col("type_manufacturer_base_year")).alias("type_manufacturer_year_diff"),
+            (pl.col("odometer_f") - pl.col("type_manufacturer_base_odometer")).alias("type_manufacturer_odometer_diff"),
+            (pl.col("type_manufacturer_base_odometer") / (2023 - pl.col("type_manufacturer_base_year"))).alias("type_manufacturer_odometer/age_base"),
+        )
+        self.test = self.test.with_columns(
+            (pl.col("year") - pl.col("type_manufacturer_base_year")).alias("type_manufacturer_year_diff"),
+            (pl.col("odometer_f") - pl.col("type_manufacturer_base_odometer")).alias("type_manufacturer_odometer_diff"),
+            (pl.col("type_manufacturer_base_odometer") / (2023 - pl.col("type_manufacturer_base_year"))).alias("type_manufacturer_odometer/age_base"),
+        )
+
+        self.train = self.train.with_columns(
+            (pl.col("odometer/age") - pl.col("type_manufacturer_odometer/age_base")).alias("type_manufacturer_odometer/age_diff"),
+        )
+        self.test = self.test.with_columns(
+            (pl.col("odometer/age") - pl.col("type_manufacturer_odometer/age_base")).alias("type_manufacturer_odometer/age_diff"),
+        )
     
     def __agg_encoding(self) -> None:
         type_age_df = self.train.groupby("type").agg(pl.mean("age").alias("type_age_mean"))
@@ -351,6 +438,7 @@ class Features:
             )
     
     def __one_hot_encoding(self) -> None:
+        self.train = self.train.drop("type_manufacturer_price_ratio")
         encodeing_columns = [
             "manufacturer",
             "fuel",
