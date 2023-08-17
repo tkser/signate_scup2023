@@ -30,6 +30,7 @@ class Features:
         self.__count_encoding()
         self.__label_encoding()
         self.__target_encoding()
+        self.__agg_encoding()
         self.__one_hot_encoding()
         return self.train, self.test
     
@@ -271,6 +272,36 @@ class Features:
             self.train = self.train.join(target_df, on=c, how="left")
             self.test = self.test.join(target_df, on=c, how="left")
     
+    def __agg_encoding(self) -> None:
+        type_age_df = self.train.groupby("type").agg(pl.mean("age").alias("type_age_mean"))
+        type_odo_df = self.train.groupby("type").agg(pl.mean("odometer").alias("type_odo_mean"))
+        manufacturer_age_df = self.train.groupby("manufacturer").agg(pl.mean("age").alias("manufacturer_age_mean"))
+        manufacturer_odo_df = self.train.groupby("manufacturer").agg(pl.mean("odometer").alias("manufacturer_odo_mean"))
+        self.train = self.train.join(type_age_df, on="type", how="left")
+        self.train = self.train.join(type_odo_df, on="type", how="left")
+        self.train = self.train.join(manufacturer_age_df, on="manufacturer", how="left")
+        self.train = self.train.join(manufacturer_odo_df, on="manufacturer", how="left")
+        self.test = self.test.join(type_age_df, on="type", how="left")
+        self.test = self.test.join(type_odo_df, on="type", how="left")
+        self.test = self.test.join(manufacturer_age_df, on="manufacturer", how="left")
+        self.test = self.test.join(manufacturer_odo_df, on="manufacturer", how="left")
+
+        self.train = self.train.with_columns(
+            (pl.mean("age") - pl.col("type_age_mean")).alias("type_age_diff"),
+            (pl.mean("odometer") - pl.col("type_odo_mean")).alias("type_odo_diff"),
+            (pl.mean("age") - pl.col("manufacturer_age_mean")).alias("manufacturer_age_diff"),
+            (pl.mean("odometer") - pl.col("manufacturer_odo_mean")).alias("manufacturer_odo_diff"),
+        )
+        self.test = self.test.with_columns(
+            (pl.mean("age") - pl.col("type_age_mean")).alias("type_age_diff"),
+            (pl.mean("odometer") - pl.col("type_odo_mean")).alias("type_odo_diff"),
+            (pl.mean("age") - pl.col("manufacturer_age_mean")).alias("manufacturer_age_diff"),
+            (pl.mean("odometer") - pl.col("manufacturer_odo_mean")).alias("manufacturer_odo_diff"),
+        )
+    
+    def __car_string_encoding(self) -> None:
+        pass
+    
     def __one_hot_encoding(self) -> None:
         encodeing_columns = [
             "manufacturer",
@@ -310,6 +341,8 @@ class FeatureSelecter:
     def __drop_category_columns(self) -> None:
         category_columns = [
             "manufacturer",
+            "condition",
+            "size",
             "fuel",
             "title_status",
             "transmission",
@@ -325,4 +358,7 @@ class FeatureSelecter:
         print(self.test.columns)
     
     def get_dataframe(self, type: str) -> Tuple[pl.DataFrame, pl.DataFrame]:
+        #数値特徴量だけを抽出
+        #train = self.train.select(pl.col(pl.Float32) | pl.col(pl.Int8) | pl.col(pl.Int16) | pl.col(pl.Int32) | pl.col(pl.Int64))
+        #test = self.test.select(pl.col(pl.Float32) | pl.col(pl.Int8) | pl.col(pl.Int16) | pl.col(pl.Int32) | pl.col(pl.Int64))
         return self.train, self.test
