@@ -4,8 +4,12 @@ import time
 
 from typing import Tuple
 
+import numpy as np
 import polars as pl
 pl.enable_string_cache(True)
+
+import fasttext
+import fasttext.util
 
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
@@ -31,6 +35,7 @@ class Features:
         self.__label_encoding()
         self.__target_encoding()
         self.__agg_encoding()
+        self.__car_string_encoding()
         self.__one_hot_encoding()
         return self.train, self.test
     
@@ -300,7 +305,43 @@ class Features:
         )
     
     def __car_string_encoding(self) -> None:
-        pass
+        self.train = self.train.with_columns(
+            (pl.col("manufacturer") + " " + pl.col("type") + " " + pl.col("transmission") + " " + pl.col("drive") + " " + pl.col("size") + " " + pl.col("paint_color")).alias("car_string")
+        )
+        self.test = self.test.with_columns(
+            (pl.col("manufacturer") + " " + pl.col("type") + " " + pl.col("transmission") + " " + pl.col("drive") + " " + pl.col("size") + " " + pl.col("paint_color")).alias("car_string")
+        )
+
+        model_path = os.path.join(os.path.dirname(__file__), "../output/model/cc.en.300.bin")
+        if not os.path.exists(model_path):
+            fasttext.util.download_model("en", if_exists="ignore")
+            os.rename("cc.en.300.bin", model_path)
+        ft_model = fasttext.load_model(model_path)
+        ft_model = fasttext.util.reduce_model(ft_model, 100)
+
+        self.train = self.train.with_columns(
+            pl.col("car_string").apply(lambda x: ft_model.get_sentence_vector(x)).alias("car_string_vec")
+        )
+        self.test = self.test.with_columns(
+            pl.col("car_string").apply(lambda x: ft_model.get_sentence_vector(x)).alias("car_string_vec")
+        )
+
+        self.train = self.train.with_columns(
+            pl.col("car_string_vec").apply(lambda x: np.linalg.norm(x, ord=2)).alias("car_string_vec_norm2"),
+            pl.col("car_string_vec").apply(lambda x: np.mean(x)).alias("car_string_vec_mean"),
+        )
+        self.test = self.test.with_columns(
+            pl.col("car_string_vec").apply(lambda x: np.linalg.norm(x, ord=2)).alias("car_string_vec_norm2"),
+            pl.col("car_string_vec").apply(lambda x: np.mean(x)).alias("car_string_vec_mean"),
+        )
+
+        for i in range(ft_model.get_dimension()):
+            self.train = self.train.with_columns(
+                pl.col('car_string_vec').apply(lambda x: x[i]).alias(f'car_string_vec_{i}')
+            )
+            self.test = self.test.with_columns(
+                pl.col('car_string_vec').apply(lambda x: x[i]).alias(f'car_string_vec_{i}')
+            )
     
     def __one_hot_encoding(self) -> None:
         encodeing_columns = [
@@ -333,7 +374,9 @@ class FeatureSelecter:
     def __common_func(self) -> None:
         common_drop_columns = [
             "id",
-            "region"
+            "region",
+            "car_string",
+            "car_string_vec"
         ]
         self.train = self.train.drop(common_drop_columns)
         self.test = self.test.drop(common_drop_columns)
