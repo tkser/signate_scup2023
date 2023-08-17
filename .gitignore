@@ -11,6 +11,9 @@ __pycache__/
 # C extensions
 *.so
 
+*.bin
+*.gz
+
 # Distribution / packaging
 .Python
 build/
