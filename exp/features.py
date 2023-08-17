@@ -14,7 +14,9 @@ import fasttext.util
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
 
+from sklearn.cluster import KMeans
 from sklearn.neighbors import KernelDensity
+from sklearn.preprocessing import StandardScaler
 
 
 class Features:
@@ -27,11 +29,13 @@ class Features:
         self.test = test
 
     def create_features(self) -> Tuple[pl.DataFrame, pl.DataFrame]:
+        self.__df_initialize()
         self.__fill_na()
         self.__pre_processing()
         self.__add_features()
         self.__add_geo_features()
-        self.__df_initialize()
+        self.__df_initialize2()
+        self.__lat_lon_clustering()
         self.__rank_encoding()
         self.__count_encoding()
         self.__kde_encoding()
@@ -41,8 +45,11 @@ class Features:
         self.__car_string_encoding()
         self.__one_hot_encoding()
         return self.train, self.test
-    
+
     def __df_initialize(self) -> None:
+        self.train = self.train.filter(pl.col("year") >= self.test["year"].min())
+    
+    def __df_initialize2(self) -> None:
         self.train = self.train.with_columns(
             pl.col(pl.Utf8).cast(pl.Categorical)
         )
@@ -232,6 +239,24 @@ class Features:
             pl.col("size").map_dict(size_mapping).alias("size_l")
         )
     
+    def __lat_lon_clustering(self) -> None:
+        scaler = StandardScaler()
+
+        scaler.fit(self.train.select(["lat", "lng"]).to_numpy())
+        self.train = self.train.hstack(pl.DataFrame(scaler.transform(self.train.select(["lat", "lng"]).to_numpy()), schema=["lat_scaled", "lng_scaled"]))
+        self.test = self.test.hstack(pl.DataFrame(scaler.transform(self.test.select(["lat", "lng"]).to_numpy()), schema=["lat_scaled", "lng_scaled"]))
+
+        n_clusters = 15
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0)
+        kmeans.fit(self.train.select(["lat_scaled", "lng_scaled"]).to_numpy())
+
+        self.train = self.train.with_columns(
+            pl.Series(kmeans.labels_.astype(np.int8)).alias("lat_lng_cluster")
+        )
+        self.test = self.test.with_columns(
+            pl.Series(kmeans.predict(self.test.select(["lat_scaled", "lng_scaled"]).to_numpy()).astype(np.int8)).alias("lat_lng_cluster")
+        )
+    
     def __rank_encoding(self) -> None:
         rank_encoding_columns = [
             #"region",
@@ -288,7 +313,8 @@ class Features:
             "drive",
             "type",
             "paint_color",
-            "state"
+            "state",
+            "lat_lng_cluster"
         ]
         target_encode(price_encoding_columns, "price")
 
@@ -297,6 +323,7 @@ class Features:
             "state",
             "region",
             "paint_color",
+            "lat_lng_cluster"
         ]
         target_encode(price_ratio_encoding_columns, "type_manufacturer_price_ratio")
     
@@ -372,30 +399,32 @@ class Features:
         )
     
     def __agg_encoding(self) -> None:
-        type_age_df = self.train.groupby("type").agg(pl.mean("age").alias("type_age_mean"))
-        type_odo_df = self.train.groupby("type").agg(pl.mean("odometer").alias("type_odo_mean"))
-        manufacturer_age_df = self.train.groupby("manufacturer").agg(pl.mean("age").alias("manufacturer_age_mean"))
-        manufacturer_odo_df = self.train.groupby("manufacturer").agg(pl.mean("odometer").alias("manufacturer_odo_mean"))
-        self.train = self.train.join(type_age_df, on="type", how="left")
-        self.train = self.train.join(type_odo_df, on="type", how="left")
-        self.train = self.train.join(manufacturer_age_df, on="manufacturer", how="left")
-        self.train = self.train.join(manufacturer_odo_df, on="manufacturer", how="left")
-        self.test = self.test.join(type_age_df, on="type", how="left")
-        self.test = self.test.join(type_odo_df, on="type", how="left")
-        self.test = self.test.join(manufacturer_age_df, on="manufacturer", how="left")
-        self.test = self.test.join(manufacturer_odo_df, on="manufacturer", how="left")
+        def agg_encode(group_col_name, target_col_name) -> None:
+            agg_df = self.train.groupby(group_col_name).agg(
+                pl.mean(target_col_name).alias(f"{group_col_name}_{target_col_name}_mean"),
+                pl.std(target_col_name).alias(f"{group_col_name}_{target_col_name}_std"),
+                pl.max(target_col_name).alias(f"{group_col_name}_{target_col_name}_max"),
+                pl.min(target_col_name).alias(f"{group_col_name}_{target_col_name}_min"),
+                (pl.max(target_col_name) - pl.min(target_col_name)).alias(f"{group_col_name}_{target_col_name}_diff"),
+            )
+            self.train = self.train.join(agg_df, on=group_col_name, how="left")
+            self.test = self.test.join(agg_df, on=group_col_name, how="left")
+        
+        for c in ['manufacturer', 'condition', 'cylinders', 'fuel', 'drive', 'type']:
+            agg_encode(c, "age")
+            agg_encode(c, "odometer")
 
         self.train = self.train.with_columns(
             (pl.mean("age") - pl.col("type_age_mean")).alias("type_age_diff"),
-            (pl.mean("odometer") - pl.col("type_odo_mean")).alias("type_odo_diff"),
+            (pl.mean("odometer") - pl.col("type_odometer_mean")).alias("type_odometer_diff"),
             (pl.mean("age") - pl.col("manufacturer_age_mean")).alias("manufacturer_age_diff"),
-            (pl.mean("odometer") - pl.col("manufacturer_odo_mean")).alias("manufacturer_odo_diff"),
+            (pl.mean("odometer") - pl.col("manufacturer_odometer_mean")).alias("manufacturer_odometer_diff"),
         )
         self.test = self.test.with_columns(
             (pl.mean("age") - pl.col("type_age_mean")).alias("type_age_diff"),
-            (pl.mean("odometer") - pl.col("type_odo_mean")).alias("type_odo_diff"),
+            (pl.mean("odometer") - pl.col("type_odometer_mean")).alias("type_odometer_diff"),
             (pl.mean("age") - pl.col("manufacturer_age_mean")).alias("manufacturer_age_diff"),
-            (pl.mean("odometer") - pl.col("manufacturer_odo_mean")).alias("manufacturer_odo_diff"),
+            (pl.mean("odometer") - pl.col("manufacturer_odometer_mean")).alias("manufacturer_odometer_diff"),
         )
     
     def __car_string_encoding(self) -> None:
