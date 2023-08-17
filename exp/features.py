@@ -35,7 +35,7 @@ class Features:
         self.__add_features()
         self.__add_geo_features()
         self.__df_initialize2()
-        self.__lat_lon_clustering()
+        self.__lat_lng_clustering()
         self.__rank_encoding()
         self.__count_encoding()
         self.__kde_encoding()
@@ -239,7 +239,7 @@ class Features:
             pl.col("size").map_dict(size_mapping).alias("size_l")
         )
     
-    def __lat_lon_clustering(self) -> None:
+    def __lat_lng_clustering(self) -> None:
         scaler = StandardScaler()
 
         scaler.fit(self.train.select(["lat", "lng"]).to_numpy())
