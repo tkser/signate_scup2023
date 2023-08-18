@@ -54,7 +54,8 @@ class LGBMModel:
             objective="mape",
             importance_type="gain",
             learning_rate=0.05,
-            verbose=-1
+            verbose=-1,
+            n_jobs=-1
         )
         scores = cross_val_score(
             model, # type: ignore
