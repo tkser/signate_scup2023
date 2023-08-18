@@ -89,14 +89,12 @@ class Features:
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("clean").alias("title_status"),
             pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
-            pl.col("odometer").fill_null(-1).alias("odometer"),
         )
         self.test = self.test.with_columns(
             pl.col("fuel").fill_null("gas").alias("fuel"),
             pl.col("type").fill_null("nan").alias("type"),
             pl.col("title_status").fill_null("clean").alias("title_status"),
             pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
-            pl.col("odometer").fill_null(-1).alias("odometer"),
         )
     
     def __manufacturer_clean(self, x) -> str:
@@ -121,6 +119,7 @@ class Features:
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
             # odometer
             pl.when(pl.col("odometer") == -131869).then(131869).otherwise(pl.col("odometer")).alias("odometer"),
+            pl.when(pl.col("odometer_f") == -131869).then(131869).otherwise(pl.col("odometer_f")).alias("odometer_f"),
             # size
             pl.col("size").str.replace(r"−|ー", "-").alias("size"),
         )
@@ -134,6 +133,7 @@ class Features:
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
             # odometer
             pl.when(pl.col("odometer") == -131869).then(131869).otherwise(pl.col("odometer")).alias("odometer"),
+            pl.when(pl.col("odometer_f") == -131869).then(131869).otherwise(pl.col("odometer_f")).alias("odometer_f"),
             # size
             pl.col("size").str.replace(r"−|ー", "-").alias("size"),
         )
@@ -149,16 +149,6 @@ class Features:
             (pl.col("odometer") / (2023 - pl.col("year"))).alias("odometer/age"),
             (pl.col("odometer") / pl.col("cylinders")).alias("odometer/cylinders"),
         )
-
-        manufacturer_agg_df = self.train.groupby("manufacturer").agg(
-            pl.mean("odometer").alias("manufacturer_odometer_mean"),
-            pl.std("odometer").alias("manufacturer_odometer_std"),
-            pl.max("odometer").alias("manufacturer_odometer_max"),
-            pl.min("odometer").alias("manufacturer_odometer_min"),
-            (pl.max("odometer") - pl.min("odometer")).alias("manufacturer_odometer_diff"),
-        )
-        self.train = self.train.join(manufacturer_agg_df, on="manufacturer", how="left")
-        self.test = self.test.join(manufacturer_agg_df, on="manufacturer", how="left")
     
     def __add_geo_features(self) -> None:
         regions = pl.concat([self.train["region"], self.test["region"]]).unique().to_list()
