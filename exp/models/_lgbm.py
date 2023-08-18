@@ -17,10 +17,11 @@ class LGBMModel:
 
     models: List[LGBMRegressor]
 
-    def __init__(self, train: pl.DataFrame, test: pl.DataFrame, seed = 0) -> None:
+    def __init__(self, train: pl.DataFrame, test: pl.DataFrame, seed = 0, objective_param = "mape") -> None:
         self.train = train
         self.test = test
         self.seed = seed
+        self.objective_param = objective_param
         self._pre_processing()
     
     def _pre_processing(self) -> None:
@@ -42,41 +43,38 @@ class LGBMModel:
             "bagging_fraction": trial.suggest_float("bagging_fraction", 0.4, 1.0),
             "bagging_freq": trial.suggest_categorical("bagging_freq", [1, 5]),
         }
-
         X, y = self.X_train.clone().to_numpy(), self.y_train.clone().to_numpy()
-        X_cv, X_eval, y_cv, y_eval = train_test_split(X, y, test_size=0.25, random_state=self.seed)
-        kf = KFold(n_splits=5, shuffle=True, random_state=self.seed * 2)
+        X_cv, X_eval, y_cv, y_eval = train_test_split(X, y, test_size=0.25, random_state=self.seed, shuffle=True)
         model = LGBMRegressor(
             **params,
-            random_state=self.seed,
+            random_state=self.seed*2,
             n_estimators=10000,
             metric="mape",
-            objective="mape",
+            objective=self.objective_param,
             importance_type="gain",
             learning_rate=0.05,
             verbose=-1,
             n_jobs=-1
         )
-        scores = cross_val_score(
-            model, # type: ignore
+        model.fit(
             X_cv, y_cv,
-            scoring=make_scorer(mean_absolute_percentage_error, greater_is_better=False),
-            cv=kf,
-            n_jobs=-1,
-            fit_params={"eval_set": [(X_eval, y_eval)], "callbacks": [early_stopping(100, verbose=False), log_evaluation(0)], "eval_metric": "mape"},
-            verbose=False
+            eval_set=[(X_cv, y_cv), (X_eval, y_eval)],
+            callbacks=[early_stopping(200, verbose=False), log_evaluation(0)],
+            eval_metric="mape"
         )
-        return -scores.mean()
+        y_pred = model.predict(X_eval, num_iteration=model.best_iteration_)
+        score = mean_absolute_percentage_error(y_eval, y_pred) # type: ignore
+        return score
     
     def objective(self, n_trial = 100) -> dict:
         study = optuna.create_study(sampler=optuna.samplers.TPESampler(seed=self.seed), direction="minimize")
-        study.optimize(self._objective_trial, n_trials=n_trial, show_progress_bar=True, n_jobs=-1)
+        study.optimize(self._objective_trial, n_trials=n_trial, show_progress_bar=True, n_jobs=1)
         self.best_params = study.best_params
         return study.best_params
     
-    def predict(self, n_splits = 5) -> pl.DataFrame:
+    def predict(self, n_splits = 5, col_name = "lgbm") -> pl.DataFrame:
         self.models = []
-        predictions = pl.DataFrame(np.zeros((self.X_all.shape[0], n_splits)), schema=[f"lgbm_pred_{i}" for i in range(n_splits)])
+        predictions = pl.DataFrame(np.zeros((self.X_all.shape[0], n_splits)), schema=[f"{col_name}_pred_{i}" for i in range(n_splits)])
         X, y = self.X_train.to_numpy(), self.y_train.to_numpy()
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
         for i, (train_index, valid_index) in enumerate(kf.split(X, y)):
@@ -87,7 +85,7 @@ class LGBMModel:
                 random_state=self.seed,
                 n_estimators=10000,
                 metric="mape",
-                objective="mape",
+                objective=self.objective_param,
                 importance_type="gain",
                 learning_rate=0.01,
                 verbose=-1
@@ -100,11 +98,11 @@ class LGBMModel:
             )
             y_pred = model.predict(X_valid)
             score = mean_absolute_percentage_error(y_valid, y_pred) # type: ignore
-            print(f"Fold_lgbm {i}: {score}")
+            print(f"Fold_{col_name} {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
             predictions = predictions.with_columns(
-                pl.Series(y_pred_all).alias(f"lgbm_pred_{i}"),
+                pl.Series(y_pred_all).alias(f"{col_name}_pred_{i}"),
             )
         return predictions
     
