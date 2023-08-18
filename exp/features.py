@@ -48,6 +48,9 @@ class Features:
 
     def __df_initialize(self) -> None:
         self.train = self.train.filter(pl.col("year") >= self.test["year"].min())
+        self.train = self.train.with_columns(
+            pl.col("price").log().alias("price"),
+        )
     
     def __df_initialize2(self) -> None:
         self.train = self.train.with_columns(

@@ -1,5 +1,4 @@
 import os
-import time
 import polars as pl
 import numpy as np
 
@@ -7,10 +6,7 @@ from exp.util.timer import Timer
 from exp.features import Features, FeatureSelecter
 from exp.models.cat import CatBoostModel
 from exp.models._lgbm import LGBMModel
-from exp.models.rf import RandomForestModel
-from exp.models.rgf import RGFModel
 from exp.models.xgb import XGBModel
-from exp.models.lr import LinerRegressionModel
 
 import gc
 gc.enable()
@@ -18,7 +14,7 @@ gc.enable()
 import warnings
 warnings.filterwarnings("ignore")
 
-LGBM_ONLY = False
+LGBM_ONLY = True
 
 
 def main():
@@ -50,25 +46,25 @@ def main():
                 }
                 lgbm01_predictions = lgbm01.predict(5, f"lgbm01_{random_status}")
                 predictions_all = pl.concat([predictions_all, lgbm01_predictions], how="horizontal")
-            
-            with Timer(f"lgbm02_{random_status}"):
-                lgbm02 = LGBMModel(*selecter.get_dataframe("lgbm"), seed=random_status)
-                lgbm02.best_params = {
-                    'num_leaves': 41,
-                    'max_depth': 4,
-                    'min_child_samples': 65,
-                    'subsample': 0.1813266686908916,
-                    'colsample_bytree': 0.9997207808739403,
-                    'reg_alpha': 3.8163343968470076e-06,
-                    'reg_lambda': 9.185674902594394e-05,
-                    'feature_fraction': 0.5180973927754882,
-                    'bagging_fraction': 0.8804646505719466,
-                    'bagging_freq': 1
-                }
-                lgbm02_predictions = lgbm02.predict(4, f"lgbm02_{random_status}")
-                predictions_all = pl.concat([predictions_all, lgbm02_predictions], how="horizontal")
 
             if not LGBM_ONLY:
+                with Timer(f"lgbm02_{random_status}"):
+                    lgbm02 = LGBMModel(*selecter.get_dataframe("lgbm"), seed=random_status)
+                    lgbm02.best_params = {
+                        'num_leaves': 41,
+                        'max_depth': 4,
+                        'min_child_samples': 65,
+                        'subsample': 0.1813266686908916,
+                        'colsample_bytree': 0.9997207808739403,
+                        'reg_alpha': 3.8163343968470076e-06,
+                        'reg_lambda': 9.185674902594394e-05,
+                        'feature_fraction': 0.5180973927754882,
+                        'bagging_fraction': 0.8804646505719466,
+                        'bagging_freq': 1
+                    }
+                    lgbm02_predictions = lgbm02.predict(4, f"lgbm02_{random_status}")
+                    predictions_all = pl.concat([predictions_all, lgbm02_predictions], how="horizontal")
+
                 with Timer(f"xgb_{random_status}"):
                     xgb = XGBModel(*selecter.get_dataframe("xgb"))
                     #xgb.objective(20)
@@ -92,10 +88,12 @@ def main():
             stack_lgbm.best_params = {'num_leaves': 44, 'max_depth': 17, 'min_child_samples': 27, 'subsample': 0.21603366788936798, 'colsample_bytree': 0.38388551583176544, 'reg_alpha': 8.122433559209657e-06, 'reg_lambda': 0.0003643964717966421, 'feature_fraction': 0.6631609080773921, 'bagging_fraction': 0.9930243028355357, 'bagging_freq': 5}
             y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
             y_pred = y_preds.mean(axis=1)[train.height:].to_list()
+        
+        y_pred = np.exp(y_pred)
 
         sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
         sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_3_stacking_all.csv"), has_header=False)
+        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_5_logexp.csv"), has_header=False)
 
 
 if __name__ == "__main__":
