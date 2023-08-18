@@ -38,6 +38,7 @@ class CatBoostModel:
             random_state=self.seed,
             learning_rate=0.05,
             eval_metric="MAPE",
+            loss_function="MAPE",
             iterations=10000
         )
         scores = cross_val_score(
@@ -70,6 +71,7 @@ class CatBoostModel:
                 random_state=self.seed,
                 learning_rate=0.01,
                 eval_metric="MAPE",
+                loss_function="MAPE",
                 iterations=10000
             )
             model.fit(
