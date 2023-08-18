@@ -5,7 +5,7 @@ import numpy as np
 
 from exp.features import Features, FeatureSelecter
 from exp.models.cat import CatBoostModel
-from exp.models.lgbm import LGBMModel
+from exp.models._lgbm import LGBMModel
 from exp.models.rf import RandomForestModel
 from exp.models.rgf import RGFModel
 from exp.models.xgb import XGBModel
