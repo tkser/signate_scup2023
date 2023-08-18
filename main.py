@@ -33,13 +33,42 @@ def main():
 
     predictions_all = pl.concat([train["price"].to_frame(), pl.DataFrame([None] * test.height, schema={"price": pl.Int64})])
 
-    time_sta = time.perf_counter()
-    lgbm = LGBMModel(*selecter.get_dataframe("lgbm"))
-    #lgbm.objective(20)
-    lgbm.best_params = {'num_leaves': 48, 'max_depth': 6, 'min_child_samples': 91, 'subsample': 0.5578230915019112, 'colsample_bytree': 0.5933052522026404, 'reg_alpha': 2.4725566626090776e-05, 'reg_lambda': 1.0114136512530978e-08, 'feature_fraction': 0.7523757350552451, 'bagging_fraction': 0.9199865329355417, 'bagging_freq': 5}
-    lgbm_predictions = lgbm.predict()
-    predictions_all = pl.concat([predictions_all, lgbm_predictions], how="horizontal")
-    print(f"lgbm: {time.perf_counter() - time_sta}")
+    for random_status in [0, 101, 269, 787, 983]:
+        time_sta = time.perf_counter()
+        lgbm01 = LGBMModel(*selecter.get_dataframe("lgbm"), seed=random_status)
+        lgbm01.best_params = {
+            'num_leaves': 48,
+            'max_depth': 6,
+            'min_child_samples': 91,
+            'subsample': 0.5578230915019112,
+            'colsample_bytree': 0.5933052522026404,
+            'reg_alpha': 2.4725566626090776e-05,
+            'reg_lambda': 1.0114136512530978e-08,
+            'feature_fraction': 0.7523757350552451,
+            'bagging_fraction': 0.9199865329355417,
+            'bagging_freq': 5
+        }
+        lgbm01_predictions = lgbm01.predict(5, f"lgbm01_{random_status}")
+        predictions_all = pl.concat([predictions_all, lgbm01_predictions], how="horizontal")
+        print(f"lgbm: {time.perf_counter() - time_sta}")
+
+        time_sta = time.perf_counter()
+        lgbm02 = LGBMModel(*selecter.get_dataframe("lgbm"), seed=random_status)
+        lgbm02.best_params = {
+            'num_leaves': 41,
+            'max_depth': 4,
+            'min_child_samples': 65,
+            'subsample': 0.1813266686908916,
+            'colsample_bytree': 0.9997207808739403,
+            'reg_alpha': 3.8163343968470076e-06,
+            'reg_lambda': 9.185674902594394e-05,
+            'feature_fraction': 0.5180973927754882,
+            'bagging_fraction': 0.8804646505719466,
+            'bagging_freq': 1
+        }
+        lgbm02_predictions = lgbm02.predict(4, f"lgbm02_{random_status}")
+        predictions_all = pl.concat([predictions_all, lgbm02_predictions], how="horizontal")
+        print(f"lgbm: {time.perf_counter() - time_sta}")
 
     if not LGBM_ONLY:
         time_sta = time.perf_counter()
@@ -49,22 +78,6 @@ def main():
         xgb_predictions = xgb.predict()
         predictions_all = pl.concat([predictions_all, xgb_predictions], how="horizontal")
         print(f"xgb: {time.perf_counter() - time_sta}")
-        
-        time_sta = time.perf_counter()
-        rf = RandomForestModel(*selecter.get_dataframe("rf"))
-        #rf.objective(5)
-        rf.best_params = {'max_depth': 9, 'min_samples_split': 11, 'min_samples_leaf': 14, 'max_features': 0.6306125661502896, 'max_leaf_nodes': 18, 'n_estimators': 8762, 'bootstrap': True}
-        rf_predictions = rf.predict()
-        predictions_all = pl.concat([predictions_all, rf_predictions], how="horizontal")
-        print(f"rf: {time.perf_counter() - time_sta}")
-
-        time_sta = time.perf_counter()
-        rgf = RGFModel(*selecter.get_dataframe("rgf"))
-        #rgf.objective(5)
-        rgf.best_params = {'max_leaf': 8072, 'algorithm': 'RGF_Opt', 'test_interval': 142, 'min_samples_leaf': 11, 'reg_depth': 9, 'l2': 0.0002082492344277923, 'sl2': 4.2919223241162815e-07, 'normalize': False}
-        rgf_predictions = rgf.predict()
-        predictions_all = pl.concat([predictions_all, rgf_predictions], how="horizontal")
-        print(f"rgf: {time.perf_counter() - time_sta}")
 
         time_sta = time.perf_counter()
         cat = CatBoostModel(*selecter.get_dataframe("cat"))
@@ -74,17 +87,16 @@ def main():
         predictions_all = pl.concat([predictions_all, cat_predictions], how="horizontal")
         print(f"cat: {time.perf_counter() - time_sta}")
         
-        train = predictions_all.filter(pl.col("price").is_not_null())
-        test = predictions_all.filter(pl.col("price").is_null())
-        stack_lr = LinerRegressionModel(train, test)
-        y_preds = stack_lr.predict(5, label="st_lr")
-        y_pred = y_preds.mean(axis=1)[train.height:].to_list()
-    else:
-        y_pred = lgbm_predictions.mean(axis=1)[train.height:].to_list()
+    train = predictions_all.filter(pl.col("price").is_not_null())
+    test = predictions_all.filter(pl.col("price").is_null())
+    stack_lgbm = LGBMModel(train, test)
+    stack_lgbm.objective(5)
+    y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
+    y_pred = y_preds.mean(axis=1)[train.height:].to_list()
 
     sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
     sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-    sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0817_4_kmeans.csv"), has_header=False)
+    sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_2_stackinglgbm.csv"), has_header=False)
 
     print(f"all: {time.perf_counter() - time_sta_all}")
 
