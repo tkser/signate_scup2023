@@ -17,7 +17,7 @@ gc.enable()
 import warnings
 warnings.filterwarnings("ignore")
 
-LGBM_ONLY = True
+LGBM_ONLY = False
 
 
 def main():
@@ -70,22 +70,22 @@ def main():
         predictions_all = pl.concat([predictions_all, lgbm02_predictions], how="horizontal")
         print(f"lgbm: {time.perf_counter() - time_sta}")
 
-    if not LGBM_ONLY:
-        time_sta = time.perf_counter()
-        xgb = XGBModel(*selecter.get_dataframe("xgb"))
-        #xgb.objective(20)
-        xgb.best_params = {'n_estimators': 767, 'max_depth': 8, 'lambda': 1.2306916748991704e-06, 'alpha': 0.018078104089246788, 'colsample_bytree': 0.42319770953022684, 'subsample': 0.2810517802368746, 'min_child_weight': 218, 'gamma': 6.031109467976734e-08, 'eta': 0.018889170085640027}
-        xgb_predictions = xgb.predict()
-        predictions_all = pl.concat([predictions_all, xgb_predictions], how="horizontal")
-        print(f"xgb: {time.perf_counter() - time_sta}")
+        if not LGBM_ONLY:
+            time_sta = time.perf_counter()
+            xgb = XGBModel(*selecter.get_dataframe("xgb"))
+            #xgb.objective(20)
+            xgb.best_params = {'n_estimators': 767, 'max_depth': 8, 'lambda': 1.2306916748991704e-06, 'alpha': 0.018078104089246788, 'colsample_bytree': 0.42319770953022684, 'subsample': 0.2810517802368746, 'min_child_weight': 218, 'gamma': 6.031109467976734e-08, 'eta': 0.018889170085640027}
+            xgb_predictions = xgb.predict(5, f"xgb_{random_status}")
+            predictions_all = pl.concat([predictions_all, xgb_predictions], how="horizontal")
+            print(f"xgb: {time.perf_counter() - time_sta}")
 
-        time_sta = time.perf_counter()
-        cat = CatBoostModel(*selecter.get_dataframe("cat"))
-        #cat.objective(5)
-        cat.best_params = {"depth": 6}
-        cat_predictions = cat.predict()
-        predictions_all = pl.concat([predictions_all, cat_predictions], how="horizontal")
-        print(f"cat: {time.perf_counter() - time_sta}")
+            time_sta = time.perf_counter()
+            cat = CatBoostModel(*selecter.get_dataframe("cat"))
+            #cat.objective(5)
+            cat.best_params = {"depth": 6}
+            cat_predictions = cat.predict(5, f"cat_{random_status}")
+            predictions_all = pl.concat([predictions_all, cat_predictions], how="horizontal")
+            print(f"cat: {time.perf_counter() - time_sta}")
         
     train = predictions_all.filter(pl.col("price").is_not_null())
     test = predictions_all.filter(pl.col("price").is_null()).drop("price")
