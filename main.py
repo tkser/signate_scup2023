@@ -88,9 +88,10 @@ def main():
         print(f"cat: {time.perf_counter() - time_sta}")
         
     train = predictions_all.filter(pl.col("price").is_not_null())
-    test = predictions_all.filter(pl.col("price").is_null())
+    test = predictions_all.filter(pl.col("price").is_null()).drop("price")
     stack_lgbm = LGBMModel(train, test)
-    stack_lgbm.objective(5)
+    #stack_lgbm.objective(5)
+    stack_lgbm.best_params = {'num_leaves': 44, 'max_depth': 17, 'min_child_samples': 27, 'subsample': 0.21603366788936798, 'colsample_bytree': 0.38388551583176544, 'reg_alpha': 8.122433559209657e-06, 'reg_lambda': 0.0003643964717966421, 'feature_fraction': 0.6631609080773921, 'bagging_fraction': 0.9930243028355357, 'bagging_freq': 5}
     y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
     y_pred = y_preds.mean(axis=1)[train.height:].to_list()
 
