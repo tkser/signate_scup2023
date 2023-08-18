@@ -15,6 +15,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 LGBM_ONLY = True
+LOG_MODE = False
 
 
 def main():
@@ -22,12 +23,12 @@ def main():
         train = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/train.csv"))
         test = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/test.csv"))
 
-        features = Features(train, test)
+        features = Features(train, test, log_mode=LOG_MODE)
         train, test = features.create_features()
 
         selecter = FeatureSelecter(train, test)
 
-        predictions_all = pl.concat([train["price"].to_frame(), pl.DataFrame([None] * test.height, schema={"price": pl.Int64})])
+        predictions_all = pl.concat([train["price"].to_frame(), pl.DataFrame([None] * test.height, schema={"price": pl.Float64})])
 
         for random_status in [0, 101, 269, 787, 983]:
             with Timer(f"lgbm01_{random_status}"):
@@ -89,11 +90,12 @@ def main():
             y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
             y_pred = y_preds.mean(axis=1)[train.height:].to_list()
         
-        y_pred = np.exp(y_pred)
+        if LOG_MODE:
+            y_pred = np.exp(y_pred)
 
         sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
         sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_5_logexp.csv"), has_header=False)
+        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_6.csv"), has_header=False)
 
 
 if __name__ == "__main__":

@@ -24,9 +24,10 @@ class Features:
     train: pl.DataFrame
     test: pl.DataFrame
 
-    def __init__(self, train: pl.DataFrame, test: pl.DataFrame) -> None:
+    def __init__(self, train: pl.DataFrame, test: pl.DataFrame, log_mode = False) -> None:
         self.train = train
         self.test = test
+        self.log_mode = log_mode
 
     def create_features(self) -> Tuple[pl.DataFrame, pl.DataFrame]:
         self.__df_initialize()
@@ -48,13 +49,15 @@ class Features:
 
     def __df_initialize(self) -> None:
         self.train = self.train.filter(pl.col("year") >= self.test["year"].min())
-        self.train = self.train.with_columns(
-            pl.col("price").log().alias("price"),
-        )
+        if self.log_mode:
+            self.train = self.train.with_columns(
+                pl.col("price").log().alias("price"),
+            )
     
     def __df_initialize2(self) -> None:
         self.train = self.train.with_columns(
-            pl.col(pl.Utf8).cast(pl.Categorical)
+            pl.col(pl.Utf8).cast(pl.Categorical),
+            pl.col("price").cast(pl.Float64).alias("price"),
         )
         self.test = self.test.with_columns(
             pl.col(pl.Utf8).cast(pl.Categorical)

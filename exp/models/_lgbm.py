@@ -77,6 +77,7 @@ class LGBMModel:
         predictions = pl.DataFrame(np.zeros((self.X_all.shape[0], n_splits)), schema=[f"{col_name}_pred_{i}" for i in range(n_splits)])
         X, y = self.X_train.to_numpy(), self.y_train.to_numpy()
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
+        scores = []
         for i, (train_index, valid_index) in enumerate(kf.split(X, y)):
             X_train, X_valid = X[train_index], X[valid_index]
             y_train, y_valid = y[train_index], y[valid_index]
@@ -98,12 +99,14 @@ class LGBMModel:
             )
             y_pred = model.predict(X_valid)
             score = mean_absolute_percentage_error(y_valid, y_pred) # type: ignore
+            scores.append(score)
             print(f"Fold_{col_name} {i}: {score}")
             self.models.append(model)
             y_pred_all = model.predict(self.X_all)
             predictions = predictions.with_columns(
                 pl.Series(y_pred_all).alias(f"{col_name}_pred_{i}"),
             )
+        print(f"CV_{col_name}: {np.mean(scores)}")
         return predictions
     
     def feature_importance(self) -> pl.DataFrame:
