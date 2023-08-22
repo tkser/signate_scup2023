@@ -84,18 +84,18 @@ def main():
         test = predictions_all.filter(pl.col("price").is_null()).drop("price")
 
         with Timer("st_lgbm"):
-            stack_lgbm = LGBMModel(train, test)
+            #stack_lgbm = LGBMModel(train, test)
             #stack_lgbm.objective(5)
-            stack_lgbm.best_params = {'num_leaves': 44, 'max_depth': 17, 'min_child_samples': 27, 'subsample': 0.21603366788936798, 'colsample_bytree': 0.38388551583176544, 'reg_alpha': 8.122433559209657e-06, 'reg_lambda': 0.0003643964717966421, 'feature_fraction': 0.6631609080773921, 'bagging_fraction': 0.9930243028355357, 'bagging_freq': 5}
-            y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
-            y_pred = y_preds.mean(axis=1)[train.height:].to_list()
+            #stack_lgbm.best_params = {'num_leaves': 44, 'max_depth': 17, 'min_child_samples': 27, 'subsample': 0.21603366788936798, 'colsample_bytree': 0.38388551583176544, 'reg_alpha': 8.122433559209657e-06, 'reg_lambda': 0.0003643964717966421, 'feature_fraction': 0.6631609080773921, 'bagging_fraction': 0.9930243028355357, 'bagging_freq': 5}
+            #y_preds = stack_lgbm.predict(5, col_name="st_lgbm")
+            y_pred = test.mean(axis=1).to_numpy()
         
         if LOG_MODE:
             y_pred = np.exp(y_pred)
 
         sub = pl.read_csv(os.path.join(os.path.dirname(__file__), "input/submit_sample.csv"), has_header=False, new_columns=["id", "price"])
         sub = sub.with_columns(pl.Series("", y_pred).alias("price"))
-        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0818_6.csv"), has_header=False)
+        sub.write_csv(os.path.join(os.path.dirname(__file__), "output/submission_te0819_1.csv"), has_header=False)
 
 
 if __name__ == "__main__":
