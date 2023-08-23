@@ -2,6 +2,7 @@ input/*.csv
 output/*[.csv|.json]
 
 catboost_info/
+gensim-data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
