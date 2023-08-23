@@ -17,6 +17,7 @@ from geopy.geocoders import Nominatim
 from sklearn.cluster import KMeans
 from sklearn.neighbors import KernelDensity
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import TruncatedSVD
 
 
 class Features:
@@ -474,10 +475,22 @@ class Features:
             "paint_color",
             "state"
         ]
-        mearge_df = pl.concat([self.train.select(pl.exclude("price")), self.test]).select(["id"] + encodeing_columns)
-        mearge_df = mearge_df.to_dummies(encodeing_columns, drop_first=True)
-        self.train = self.train.join(mearge_df, on="id", how="left")
-        self.test = self.test.join(mearge_df, on="id", how="left")
+        for c in encodeing_columns:
+            merge_df = pl.concat([self.train.select(pl.exclude("price")), self.test]).select(["id", c])
+            merge_df = merge_df.to_dummies([c], drop_first=True)
+            if len(merge_df.columns) > 11:
+                merge_df = self.__svd_dimention_reduction(merge_df, c, n_components=10)
+            self.train = self.train.join(merge_df, on="id", how="left")
+            self.test = self.test.join(merge_df, on="id", how="left")
+    
+    def __svd_dimention_reduction(self, df: pl.DataFrame, col_name: str, n_components: int = 10, seed: int = 0) -> pl.DataFrame:
+        svd = TruncatedSVD(n_components=n_components, random_state=seed)
+        ids = df.select("id")
+        df = df.drop("id")
+        df_svd = svd.fit_transform(df.to_numpy())
+        df_svd = pl.DataFrame(df_svd, schema=[f"{col_name}_svd_{i}" for i in range(n_components)])
+        df_svd = ids.hstack(df_svd)
+        return df_svd
 
 
 class FeatureSelecter:
