@@ -146,6 +146,46 @@ class Features:
         )
 
     def __add_features(self) -> None:
+        manufacturer_ref_val = {
+            "jaguar": 2.0,
+            "land_rover": 2.0,
+            "aston_martin": 2.0,
+            "cadillac": 2.0,
+            "lexus": 2.0,
+            "porsche": 2.0,
+            "audi": 2.0,
+            "mercedes_benz": 2.0,
+            "bmw": 2.0,
+            "buick": 1.4,
+            "lincoln": 1.4,
+            "volvo": 1.4,
+            "acura": 1.4,
+            "infiniti": 1.4,
+            "mazda": 1.1,
+            "chevrolet": 1.1,
+            "hyundai": 1.1,
+            "kia": 1.1,
+            "nissan": 1.1,
+            "volkswagen": 1.1,
+            "subaru": 1.1,
+            "honda": 1.1,
+            "toyota": 1.1,
+            "ford": 1.1,
+            "mitsubishi": 1.1,
+            "fiat": 0.8,
+            "mini": 0.8,
+            "dodge": 1.3,
+            "gmc": 1.3,
+            "jeep": 1.3,
+            "ram": 1.3
+        }
+        self.train = self.train.with_columns(
+            pl.col("manufacturer").map_dict(manufacturer_ref_val).alias("manufacturer_ref_val")
+        )
+        self.test = self.test.with_columns(
+            pl.col("manufacturer").map_dict(manufacturer_ref_val).alias("manufacturer_ref_val")
+        )
+
         self.train = self.train.with_columns(
             (2023 - pl.col("year")).alias("age"),
             (pl.col("odometer") / (2023 - pl.col("year"))).alias("odometer/age"),
