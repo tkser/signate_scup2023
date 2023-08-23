@@ -426,10 +426,38 @@ class Features:
     
     def __car_string_encoding(self) -> None:
         self.train = self.train.with_columns(
-            (pl.col("manufacturer") + " " + pl.col("type") + " " + pl.col("transmission") + " " + pl.col("drive") + " " + pl.col("size") + " " + pl.col("paint_color")).alias("car_string")
+            (pl.lit("This is a ") + \
+            pl.col("manufacturer").apply(lambda x: x.replace("_", " ")) + \
+            pl.lit(" ") + \
+            pl.col("type") + \
+            pl.lit(" with a ") + \
+            pl.col("fuel") + \
+            pl.lit(" engine and ") + \
+            pl.col("transmission") + \
+            pl.lit(" transmission. It has ") + \
+            pl.col("drive") + \
+            pl.lit(" drive and comes in ") + \
+            pl.col("paint_color") + \
+            pl.lit(" color. The size of the car is ") + \
+            pl.col("size") + \
+            pl.lit(".")).alias("car_string")
         )
         self.test = self.test.with_columns(
-            (pl.col("manufacturer") + " " + pl.col("type") + " " + pl.col("transmission") + " " + pl.col("drive") + " " + pl.col("size") + " " + pl.col("paint_color")).alias("car_string")
+            (pl.lit("This is a ") + \
+            pl.col("manufacturer").apply(lambda x: x.replace("_", " ")) + \
+            pl.lit(" ") + \
+            pl.col("type") + \
+            pl.lit(" with a ") + \
+            pl.col("fuel") + \
+            pl.lit(" engine and ") + \
+            pl.col("transmission") + \
+            pl.lit(" transmission. It has ") + \
+            pl.col("drive") + \
+            pl.lit(" drive and comes in ") + \
+            pl.col("paint_color") + \
+            pl.lit(" color. The size of the car is ") + \
+            pl.col("size") + \
+            pl.lit(".")).alias("car_string")
         )
 
         model_path = os.path.join(os.path.dirname(__file__), "../output/model/cc.en.300.bin")
@@ -437,7 +465,6 @@ class Features:
             fasttext.util.download_model("en", if_exists="ignore")
             os.rename("cc.en.300.bin", model_path)
         ft_model = fasttext.load_model(model_path)
-        ft_model = fasttext.util.reduce_model(ft_model, 50)
 
         self.train = self.train.with_columns(
             pl.col("car_string").apply(lambda x: ft_model.get_sentence_vector(x)).alias("car_string_vec")
