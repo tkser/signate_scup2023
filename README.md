@@ -5,6 +5,25 @@
 
 ~ 2023/08/24 23:59:59 (JST)
 
+## Result
+
+<table>
+<tbody>
+<tr>
+<td>Rank</td>
+<td>42th</td>
+</tr>
+<tr>
+<td>Public LB</td>
+<td>43.6241652</td>
+</tr>
+<tr>
+<td>Private LB</td>
+<td>43.4362935</td>
+</tr>
+</tbody>
+</table>
+
 ## Data
 |ヘッダ名称|値例|データ型|説明|
 |--|--|--|--|
