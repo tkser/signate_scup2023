@@ -10,6 +10,8 @@ pl.enable_string_cache(True)
 
 import fasttext
 import fasttext.util
+import gensim.downloader
+from gensim.models import KeyedVectors
 
 from unidecode import unidecode
 from geopy.geocoders import Nominatim
@@ -44,6 +46,7 @@ class Features:
         self.__target_encoding()
         self.__label_encoding()
         self.__agg_encoding()
+        self.__w2v_encoding()
         self.__car_string_encoding()
         self.__one_hot_encoding()
         return self.train, self.test
@@ -104,15 +107,22 @@ class Features:
             pl.col("odometer").fill_null(pl.col("odometer").median()).alias("odometer_f"),
         )
     
-    def __manufacturer_clean(self, x) -> str:
+    def __manufacturer_clean(self, x, to_lower=False) -> str:
         error_parse_dict = {
             "lexudz": "lexus",
             "nidzsan": "nissan",
             "nisdzan": "nissan"
         }
-        x = unidecode(x).lower().replace(" ", "_").replace("-", "_")
+        x = unidecode(x).lower()
         if x in error_parse_dict.keys():
             x = error_parse_dict[x]
+        if to_lower:
+            x = x.replace(" ", "_").replace("-", "_")
+        else:
+            if x in ["gmc", "bmw"]:
+                x = x.upper()
+            else:
+                x = "_".join([s.capitalize() for s in x.split("-")[0].split(" ")])
         return x
 
     def __pre_processing(self) -> None:
@@ -120,7 +130,8 @@ class Features:
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(self.__manufacturer_clean).alias("manufacturer"),
+            pl.col("manufacturer").apply(self.__manufacturer_clean).alias("manufacturer_original"),
+            pl.col("manufacturer").apply(lambda x: self.__manufacturer_clean(x, True)).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
@@ -129,12 +140,17 @@ class Features:
             pl.when(pl.col("odometer_f") == -131869).then(131869).otherwise(pl.col("odometer_f")).alias("odometer_f"),
             # size
             pl.col("size").str.replace(r"−|ー", "-").alias("size"),
+            # type
+            pl.col("type").str.replace(r"-", "").alias("type"),
+            # paint_color
+            pl.col("paint_color").str.replace(r"grey", "gray").alias("paint_color"),
         )
         self.test = self.test.with_columns(
             # year
             pl.when(pl.col("year") >= 2030).then(pl.col("year") - 1000).otherwise(pl.col("year")).alias("year"),
             # manufacturer
-            pl.col("manufacturer").apply(self.__manufacturer_clean).alias("manufacturer"),
+            pl.col("manufacturer").apply(self.__manufacturer_clean).str.split("-").list[0].alias("manufacturer_original"),
+            pl.col("manufacturer").apply(lambda x: self.__manufacturer_clean(x, True)).alias("manufacturer"),
             # cylinders
             pl.when(pl.col("cylinders") == "other").then("-1 cylinders").otherwise(pl.col("cylinders"))
                 .apply(lambda x: re.sub(r'[^-?\d]', "", x)).cast(pl.Int8).alias("cylinders"),
@@ -143,6 +159,10 @@ class Features:
             pl.when(pl.col("odometer_f") == -131869).then(131869).otherwise(pl.col("odometer_f")).alias("odometer_f"),
             # size
             pl.col("size").str.replace(r"−|ー", "-").alias("size"),
+            # type
+            pl.col("type").str.replace(r"-", "").alias("type"),
+            # paint_color
+            pl.col("paint_color").str.replace(r"grey", "gray").alias("paint_color"),
         )
 
     def __add_features(self) -> None:
@@ -464,10 +484,41 @@ class Features:
             (pl.mean("odometer") - pl.col("manufacturer_odometer_mean")).alias("manufacturer_odometer_diff"),
         )
     
+    def __w2v_encoding(self) -> None:
+        w2v_model = gensim.downloader.load("word2vec-google-news-300")
+        vec_cols = ["manufacturer_original", "type", "fuel", "transmission", "drive", "paint_color"]
+
+        for i in range(300):
+            self.train = self.train.with_columns(
+                pl.lit(0).alias(f'car_w2v_{i}')
+            )
+            self.test = self.test.with_columns(
+                pl.lit(0).alias(f'car_w2v_{i}')
+            )
+
+        for col in vec_cols:
+            for i in range(300):
+                self.train = self.train.with_columns(
+                    (pl.col(f'car_w2v_{i}') + pl.col(col).apply(lambda x: w2v_model[x][i])).alias(f'car_w2v_{i}')
+                )
+                self.test = self.test.with_columns(
+                    (pl.col(f'car_w2v_{i}') + pl.col(col).apply(lambda x: w2v_model[x][i])).alias(f'car_w2v_{i}')
+                )
+        
+        vector_columns = [f'car_w2v_{n}' for n in range(300)]
+        self.train = self.train.with_columns(
+            self.train.select(vector_columns).apply(lambda x: np.linalg.norm(x, ord=2)).to_series().alias("car_w2v_norm2"),
+            self.train.select(vector_columns).apply(lambda x: np.mean(x)).to_series().alias("car_w2v_mean"),
+        )
+        self.test = self.test.with_columns(
+            self.test.select(vector_columns).apply(lambda x: np.linalg.norm(x, ord=2)).to_series().alias("car_w2v_norm2"),
+            self.test.select(vector_columns).apply(lambda x: np.mean(x)).to_series().alias("car_w2v_mean"),
+        )
+    
     def __car_string_encoding(self) -> None:
         self.train = self.train.with_columns(
             (pl.lit("This is a ") + \
-            pl.col("manufacturer").apply(lambda x: x.replace("_", " ")) + \
+            pl.col("manufacturer_original") + \
             pl.lit(" ") + \
             pl.col("type") + \
             pl.lit(" with a ") + \
@@ -576,7 +627,9 @@ class FeatureSelecter:
             "id",
             "region",
             "car_string",
-            "car_string_vec"
+            "car_string_vec",
+            "manufacturer_original",
+            "odometer_f"
         ]
         self.train = self.train.drop(common_drop_columns)
         self.test = self.test.drop(common_drop_columns)
